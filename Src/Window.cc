@@ -29,6 +29,8 @@ Frender::Window::Window(Frender::WindowSettings settings)
 
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
+    glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
+
     window = glfwCreateWindow(settings.width, settings.height, settings.title.c_str(), NULL, NULL);
 
     if (!window)
@@ -47,7 +49,6 @@ Frender::Window::Window(Frender::WindowSettings settings)
     glfwGetFramebufferSize(window, &settings.width, &settings.height);
     glfwSetFramebufferSizeCallback(window, framebuffer_size_callback);  
     glViewport(0, 0, settings.width, settings.height);
-
 }
 
 void Frender::Window::mainloop(Renderer* renderer)
@@ -55,7 +56,7 @@ void Frender::Window::mainloop(Renderer* renderer)
     double time = glfwGetTime();
     while (!glfwWindowShouldClose(window))
     {
-        glfwSwapBuffers(window);
+        glfwMakeContextCurrent(window);
         glfwPollEvents();
 
         float delta = glfwGetTime() - time;
@@ -63,8 +64,13 @@ void Frender::Window::mainloop(Renderer* renderer)
 
         // TODO: Run callback here
         renderer->render(delta);
-    }
 
+        glfwSwapBuffers(window);
+    }
+}
+
+Frender::Window::~Window()
+{
     glfwDestroyWindow(window);
     glfwTerminate();
 }

@@ -6,7 +6,39 @@ enable_testing()
 
 set(CMAKE_CXX_STANDARD 17)
 
-add_library(Frender Src/Window.cc Src/Renderer.cc)
+####################################################################################################
+# This function converts any file into C/C++ source code.
+# Example:
+# - input file: data.dat
+# - output file: data.h
+# - variable name declared in output file: DATA
+# - data length: sizeof(DATA)
+# embed_resource("data.dat" "data.h" "DATA")
+####################################################################################################
+
+function(embed_resource resource_file_name source_file_name variable_name)
+
+    file(READ ${resource_file_name} text_content)
+
+    string(REPLACE "\n" "\\n\\\n" content "${text_content}")
+
+    set(array_definition "static const char ${variable_name}[] = \"${content}\";")
+
+    set(source "// Auto generated file.\n${array_definition}\n")
+
+    file(WRITE "${source_file_name}" "${source}")
+
+endfunction()
+
+embed_resource("Shaders/stage1.vert" "Include/Frender/Shaders/Stage1Vert.h" "BulkStage1VertSrc")
+embed_resource("Shaders/stage1.frag" "Include/Frender/Shaders/Stage1Frag.h" "BulkStage1FragSrc")
+
+add_library(Frender 
+    Src/Window.cc
+    Src/Renderer.cc
+    Src/GLTools.cc
+    Src/BulkRenderer.cc
+    )
 target_include_directories(Frender PUBLIC Include)
 
 # GLFW

@@ -1,12 +1,13 @@
 #include "Frender/GLTools.hh"
 #include <glad/glad.h>
+#include <iostream>
 
 Frender::GLTools::MeshBuffer::MeshBuffer(const std::vector<Vertex>& vertices, const std::vector<uint32_t>& indices)
 {
     // Create buffer
+    glGenVertexArrays(1, &vao);
     glGenBuffers(1, &vbo);
     glGenBuffers(1, &ebo);
-    glGenVertexArrays(1, &vao);
 
     glBindVertexArray(vao);
 
@@ -31,6 +32,17 @@ Frender::GLTools::MeshBuffer::MeshBuffer(const std::vector<Vertex>& vertices, co
 
 Frender::GLTools::MeshBuffer::~MeshBuffer()
 {
+    // if (num_indices != -1)
+    // {
+    //     // Delete our OpenGL objects
+    //     glDeleteBuffers(1, &vbo);
+    //     glDeleteBuffers(1, &ebo);
+    //     glDeleteVertexArrays(1, &vao);
+    // }
+}
+
+void Frender::GLTools::MeshBuffer::destroy()
+{
     if (num_indices != -1)
     {
         // Delete our OpenGL objects
@@ -43,4 +55,95 @@ Frender::GLTools::MeshBuffer::~MeshBuffer()
 void Frender::GLTools::MeshBuffer::enable()
 {
     glBindVertexArray(vao);
+}
+
+Frender::GLTools::Shader::Shader(const std::string& vert, const std::string& frag)
+{
+    uint32_t fragment, vertex;
+
+    vertex = glCreateShader(GL_VERTEX_SHADER);
+
+    // Compile shader
+    // For some reason this is nessesairy
+    const char* vs = vert.c_str();
+    glShaderSource(vertex, 1, &vs, NULL);
+    glCompileShader(vertex);
+
+    // Check for errors
+    int v_success;
+    char v_log[512];
+    glGetShaderiv(vertex, GL_COMPILE_STATUS, &v_success);
+
+    if (!v_success)
+    {
+        glGetShaderInfoLog(vertex, 512, NULL, v_log);
+        std::cerr << "Vertex shader compilation failed: " << v_log << "\n";
+        return;
+    }
+
+    fragment = glCreateShader(GL_FRAGMENT_SHADER);
+
+    // Compile shader
+    // For some reason this is nessesairy
+    const char* fs = frag.c_str();
+    glShaderSource(fragment, 1, &fs, NULL);
+    glCompileShader(fragment);
+
+    // Check for errors
+    int f_success;
+    char f_log[512];
+    glGetShaderiv(fragment, GL_COMPILE_STATUS, &f_success);
+
+    if (!f_success)
+    {
+        glGetShaderInfoLog(fragment, 512, NULL, f_log);
+        std::cerr << "Fragment shader compilation failed: " << f_log << "\n";
+        return;
+    }
+
+    // Shader program
+    program = glCreateProgram();
+
+    // Link shaders
+    glAttachShader(program, vertex);
+    glAttachShader(program, fragment);
+    glLinkProgram(program);
+
+    // Check for errors
+    int p_success;
+    char p_log[512];
+    glGetProgramiv(program, GL_LINK_STATUS, &p_success);
+
+    if (!p_success)
+    {
+        glGetProgramInfoLog(program, 512, NULL, p_log);
+        std::cerr << "Shader linking failed: " << p_log << "\n";
+        return;
+    }
+
+    // Remove useless shaders
+    glDeleteShader(vertex);
+    glDeleteShader(fragment);
+
+    created = true;
+}
+
+Frender::GLTools::Shader::~Shader()
+{
+    // glDeleteProgram(program);
+}
+
+void Frender::GLTools::Shader::destroy()
+{
+    glDeleteProgram(program);
+}
+
+
+void Frender::GLTools::Shader::enable()
+{
+    if (!created)
+    {
+        std::cerr << "Attempting to enable inexistant program\n" ;
+    }
+    glUseProgram(program);
 }

@@ -2,12 +2,29 @@
 #define FRENDER_HH
 
 #include <string>
+#include <map>
+#include <variant>
+#include <glm/glm.hpp>
+#include <memory>
+#include <vector>
+
+#include "Frender/GLTools.hh"
+
 class GLFWwindow;
 
 namespace Frender
 {
     class Renderer;
 
+    // Typedefs
+    typedef std::variant<uint32_t, int32_t, float, glm::vec2, glm::vec3, glm::vec4, glm::mat4> UniformType;
+    enum RenderType
+    {
+        Bulk,
+        Detail
+    };
+    typedef uint32_t MeshRef;
+    typedef GLTools::Vertex Vertex;
 
     struct WindowSettings
     {
@@ -21,16 +38,86 @@ namespace Frender
     {
     public:
         Window(WindowSettings settings);
+        ~Window();
 
         void mainloop(Renderer* renderer);
     private:
         GLFWwindow* window;
     };
 
+    struct Material
+    {
+        std::map<std::string, UniformType> uniforms;
+        uint32_t handle;
+        GLTools::Shader shader;
+        RenderType type;
+    };
+
+    /*
+    Seperate MaterialRef class so we don't need to have materials as pointers
+    MaterialRef has all the info OpenGL would need to render the
+    given material, but doesn't have any of the actual data
+    */
+    struct MaterialRef
+    {
+        Material* mat_ref;
+        uint32_t handle;
+        GLTools::Shader shader;
+    };
+
+    /**
+    Struct with all the nessesary data to render a materialed mesh
+    */
+    struct RenderObject
+    {
+        uint32_t* pos;
+        glm::mat4 transform;
+        MaterialRef mat;
+        GLTools::MeshBuffer mesh;
+    };
+
+    class RenderObjectRef
+    {
+    public:
+        RenderObjectRef(uint32_t* index, Renderer* renderer):index(index), renderer(renderer) {}
+        // TODO: Add functions for stuff
+
+    private:
+        uint32_t* index;
+        Renderer* renderer;
+    };
+
     class Renderer
     {
     public:
+        Renderer();
+
         void render(float delta);
+
+        /**
+        Creates an empty material.
+        The material can be customised by changing uniforms.
+        If no shaders are specified, it will use the bulk shader.
+        Only Materials based on the bulk shader can be used by the bulk renderer
+        */
+        Material* createMaterial();
+        Material* createMaterial(GLTools::Shader shader);
+
+        MeshRef createMesh(const std::vector<Vertex>& vertices, const std::vector<uint32_t>& indices);
+
+        RenderObjectRef createRenderObject(MeshRef mesh, Material* mat, glm::mat4 transform);
+
+    private:
+        /** Shaders used for Stage1 of the Bulk rendering process */
+        GLTools::Shader stage1_bulk_shader;
+
+        // Pools
+        std::vector<Material> materials;
+        std::vector<RenderObject> render_objects;
+        std::vector<GLTools::MeshBuffer> meshes;
+
+        // Functions
+        void bulkRender();
     };
 }
 
