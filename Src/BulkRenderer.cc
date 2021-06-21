@@ -7,6 +7,10 @@ void Frender::Renderer::bulkRender()
     for (auto i : render_objects)
     {
         i.mesh.enable();
+        
+        // Set important uniforms
+        i.mat.shader.setUniforms(projection * inv_camera * i.transform, i.transform);
+
         glDrawElements(GL_TRIANGLES, i.mesh.num_indices, GL_UNSIGNED_INT, 0);
     }
 }

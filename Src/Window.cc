@@ -5,6 +5,10 @@
 #include <GLFW/glfw3.h>
 
 #include <iostream>
+#include <unordered_map>
+
+// A stupid solution to a stupid problem
+static std::unordered_map<GLFWwindow*, Frender::Window*> window_windows;
 
 void error_callback(int error, const char* description)
 {
@@ -14,10 +18,13 @@ void error_callback(int error, const char* description)
 void framebuffer_size_callback(GLFWwindow* window, int width, int height)
 {
     glViewport(0, 0, width, height);
+    window_windows[window]->_sizeCallback(width, height);
 }
 
 Frender::Window::Window(Frender::WindowSettings settings)
 {
+    renderer = nullptr;
+
     // Create basic window for opengl
     if (!glfwInit())
     {
@@ -46,13 +53,28 @@ Frender::Window::Window(Frender::WindowSettings settings)
         fprintf(stderr, "Error: %s\n", "Could not create GL context; make sure your computer supports OpenGL 3.3");
     }
 
+    // Because apparently being able to pass custom arguments into
+    // callbacks is too difficult for a library like glfw to implement
+    window_windows[window] = this;
+
     glfwGetFramebufferSize(window, &settings.width, &settings.height);
-    glfwSetFramebufferSizeCallback(window, framebuffer_size_callback);  
+    glfwSetFramebufferSizeCallback(window, framebuffer_size_callback);
     glViewport(0, 0, settings.width, settings.height);
 }
 
-void Frender::Window::mainloop(Renderer* renderer)
+void Frender::Window::_sizeCallback(int width, int height)
 {
+    if (renderer != nullptr)
+    {
+        // TODO: Allow this to be manually overridden
+        renderer->setRenderResolution(width, height);
+    }
+}
+
+void Frender::Window::mainloop(Renderer* render)
+{
+    renderer = render;
+
     double time = glfwGetTime();
     while (!glfwWindowShouldClose(window))
     {

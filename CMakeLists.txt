@@ -54,7 +54,8 @@ add_subdirectory(ThirdParty/glad)
 target_link_libraries(Frender glad)
 
 # GLM
-# add_subdirectory(ThirdParty/glm)
+# Make sure GLM always creates matricies with values that actually work
+add_compile_definitions(GLM_FORCE_CTOR_INIT)
 target_include_directories(Frender PUBLIC ThirdParty/glm)
 
 

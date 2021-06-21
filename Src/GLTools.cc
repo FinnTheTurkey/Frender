@@ -1,6 +1,7 @@
 #include "Frender/GLTools.hh"
 #include <glad/glad.h>
 #include <iostream>
+#include <glm/gtc/type_ptr.hpp>
 
 Frender::GLTools::MeshBuffer::MeshBuffer(const std::vector<Vertex>& vertices, const std::vector<uint32_t>& indices)
 {
@@ -125,6 +126,10 @@ Frender::GLTools::Shader::Shader(const std::string& vert, const std::string& fra
     glDeleteShader(vertex);
     glDeleteShader(fragment);
 
+    // Get uniform locations
+    mvp_location = glGetUniformLocation(program, "mvp");
+    m_location = glGetUniformLocation(program, "model");
+
     created = true;
 }
 
@@ -146,4 +151,10 @@ void Frender::GLTools::Shader::enable()
         std::cerr << "Attempting to enable inexistant program\n" ;
     }
     glUseProgram(program);
+}
+
+void Frender::GLTools::Shader::setUniforms(glm::mat4 mvp, glm::mat4 m)
+{
+    glUniformMatrix4fv(mvp_location, 1, GL_FALSE, glm::value_ptr(mvp));
+    glUniformMatrix4fv(m_location, 1, GL_FALSE, glm::value_ptr(m));
 }

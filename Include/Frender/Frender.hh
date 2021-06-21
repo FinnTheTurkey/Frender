@@ -41,8 +41,11 @@ namespace Frender
         ~Window();
 
         void mainloop(Renderer* renderer);
+
+        void _sizeCallback(int width, int height);
     private:
         GLFWwindow* window;
+        Renderer* renderer;
     };
 
     struct Material
@@ -90,7 +93,7 @@ namespace Frender
     class Renderer
     {
     public:
-        Renderer();
+        Renderer(int width, int height);
 
         void render(float delta);
 
@@ -103,9 +106,28 @@ namespace Frender
         Material* createMaterial();
         Material* createMaterial(GLTools::Shader shader);
 
+        /**
+        Uploads a mesh to the GPU. No copy of the mesh is stored on the CPU
+        */
         MeshRef createMesh(const std::vector<Vertex>& vertices, const std::vector<uint32_t>& indices);
 
+        /**
+        Creates a render object - aka a thing with a mesh and a material
+        This thing will appear when the scene is rendered
+        */
         RenderObjectRef createRenderObject(MeshRef mesh, Material* mat, glm::mat4 transform);
+
+        void setCamera(const glm::mat4& matrix);
+
+        /**
+        Sets the resolution the scene should be rendered at
+        */
+        void setRenderResolution(int new_width, int new_height);
+
+        // Settings
+        float fov_rad = 1.57;
+        float near_distance = 0.01;
+        float far_distance = 100;
 
     private:
         /** Shaders used for Stage1 of the Bulk rendering process */
@@ -115,6 +137,15 @@ namespace Frender
         std::vector<Material> materials;
         std::vector<RenderObject> render_objects;
         std::vector<GLTools::MeshBuffer> meshes;
+
+        // Useful info
+        glm::mat4 camera;
+        glm::mat4 inv_camera;
+        glm::mat4 projection;
+
+        // Less easily changed settings
+        int width;
+        int height;
 
         // Functions
         void bulkRender();

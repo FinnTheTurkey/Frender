@@ -41,10 +41,14 @@ namespace Frender::GLTools
 
         void enable();
 
+        void setUniforms(glm::mat4 mvp, glm::mat4 m);
+
         bool created;
     
     private:
         uint32_t program;
+        uint32_t mvp_location;
+        uint32_t m_location;
     };
 }
 

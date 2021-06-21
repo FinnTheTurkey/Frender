@@ -6,18 +6,36 @@
 #include "Frender/GLTools.hh"
 #include "Frender/Shaders/Stage1Vert.h"
 #include "Frender/Shaders/Stage1Frag.h"
+#include "glm/glm.hpp"
+#include <glm/gtc/matrix_transform.hpp>
 
-Frender::Renderer::Renderer()
+Frender::Renderer::Renderer(int width, int height)
 {
-
+    setRenderResolution(width, height);
 }
 
 void Frender::Renderer::render(float delta)
 {
     glClearColor(0.2f, 0.3f, 0.3f, 1.0f);
-    glClear(GL_COLOR_BUFFER_BIT);
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+    // TODO: Orthographic?
+    projection = glm::perspective(fov_rad, (float)width/height, near_distance, far_distance);
 
     bulkRender();
+}
+
+void Frender::Renderer::setCamera(const glm::mat4 &matrix)
+{
+    camera = matrix;
+    inv_camera = glm::inverse(matrix);
+}
+
+void Frender::Renderer::setRenderResolution(int new_width, int new_height)
+{
+    // TODO: Create new framebuffers
+    width = new_width;
+    height = new_height;
 }
 
 Frender::Material* Frender::Renderer::createMaterial()
