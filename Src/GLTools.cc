@@ -2,6 +2,11 @@
 #include <glad/glad.h>
 #include <iostream>
 #include <glm/gtc/type_ptr.hpp>
+#include <variant>
+
+// ====================================================================
+// Mesh Buffer
+// ====================================================================
 
 Frender::GLTools::MeshBuffer::MeshBuffer(const std::vector<Vertex>& vertices, const std::vector<uint32_t>& indices)
 {
@@ -52,6 +57,10 @@ void Frender::GLTools::MeshBuffer::destroy()
         glDeleteVertexArrays(1, &vao);
     }
 }
+
+// ====================================================================
+// Shader
+// ====================================================================
 
 void Frender::GLTools::MeshBuffer::enable()
 {
@@ -157,4 +166,138 @@ void Frender::GLTools::Shader::setUniforms(glm::mat4 mvp, glm::mat4 m)
 {
     glUniformMatrix4fv(mvp_location, 1, GL_FALSE, glm::value_ptr(mvp));
     glUniformMatrix4fv(m_location, 1, GL_FALSE, glm::value_ptr(m));
+}
+
+// ====================================================================
+// Uniform Buffer
+// ====================================================================
+
+Frender::GLTools::UniformBuffer::UniformBuffer(Shader shader, std::string ub_name, std::vector<UniformRow> values_info)
+{
+    uint32_t index = glGetUniformBlockIndex(shader.program, ub_name.c_str());
+
+    // Tell OpenGL that the UBO at binding point 0 is ub_name
+    glUniformBlockBinding(shader.program, index, 0);
+
+    // Get size of ubo
+    int block_size;
+    glGetActiveUniformBlockiv(shader.program, index, GL_UNIFORM_BLOCK_DATA_SIZE, &block_size);
+
+    // Create buffer
+    glGenBuffers(1, &handle);
+    glBindBuffer(GL_UNIFORM_BUFFER, handle);
+
+    // Convert names to c strings for OpenGL
+    std::vector<const char*> names_for_gl;
+    for (auto i : values_info)
+    {
+        // This should hopefully work
+        names_for_gl.push_back(i.name.c_str());
+    }
+
+    // This is getting the "id" of each of the uniforms in the ubo
+    uint32_t uniform_indices[names_for_gl.size()];
+    glGetUniformIndices(shader.program, names_for_gl.size(), &names_for_gl[0], uniform_indices);
+
+    // Get actual offsets in memory
+    int32_t offsets[names_for_gl.size()];
+    glGetActiveUniformsiv(shader.program, names_for_gl.size(), uniform_indices, GL_UNIFORM_OFFSET, offsets);
+
+    // Check to insure the uniforms types are correct on both sides
+    int32_t types_from_gl[names_for_gl.size()];
+    glGetActiveUniformsiv(shader.program, names_for_gl.size(), uniform_indices, GL_UNIFORM_TYPE, types_from_gl);
+
+    for (int t = 0; t < values_info.size(); t++)
+    {
+        if ((values_info[t].type == Float && types_from_gl[t] != GL_FLOAT) ||
+            (values_info[t].type == Int && types_from_gl[t] != GL_INT) ||
+            (values_info[t].type == Vec2 && types_from_gl[t] != GL_FLOAT_VEC2) ||
+            (values_info[t].type == Vec3 && types_from_gl[t] != GL_FLOAT_VEC3) ||
+            (values_info[t].type == Vec4 && types_from_gl[t] != GL_FLOAT_VEC4) ||
+            (values_info[t].type == Mat4 && types_from_gl[t] != GL_FLOAT_MAT4))
+        {
+            // Type mismatch!
+            std::cerr << "Type mismatch in uniform buffer: Make sure the names and types in the shader and the material match up exactly. \n";
+        }
+    }
+
+    // Size up the buffer
+    glBindBuffer(GL_UNIFORM_BUFFER, handle);
+    glBufferData(GL_UNIFORM_BUFFER, block_size, NULL, GL_DYNAMIC_DRAW);
+
+    // Bind this buffer to the binding point we specified at the top
+    // Which also binds it to the ubo specified by the shader
+    // This line must be called everytime we switch UBOs
+    glBindBufferBase(GL_UNIFORM_BUFFER, 0, handle);
+
+    // Put all the data into the buffer
+    for (int i = 0; i < values_info.size(); i++)
+    {
+        data.push_back({values_info[i].name, values_info[i].type, values_info[i].value, offsets[i]});
+
+        setBufferValue(data[i]);
+    }
+}
+
+void Frender::GLTools::UniformBuffer::setBufferValue(const _UniformRow& row)
+{
+    switch (row.type)
+        {
+            case (Int):
+            {
+                glBufferSubData(GL_UNIFORM_BUFFER, row.offset, sizeof(int32_t), &std::get<int32_t>(row.value));
+                break;
+            }
+            case (Float):
+            {
+                glBufferSubData(GL_UNIFORM_BUFFER, row.offset, sizeof(float), &std::get<float>(row.value));
+                break;
+            }
+            case (Vec2):
+            {
+                glBufferSubData(GL_UNIFORM_BUFFER, row.offset, sizeof(float) * 2, glm::value_ptr(std::get<glm::vec2>(row.value)));
+                break;
+            }
+            case (Vec3):
+            {
+                glBufferSubData(GL_UNIFORM_BUFFER, row.offset, sizeof(float) * 3, glm::value_ptr(std::get<glm::vec3>(row.value)));
+                break;
+            }
+            case (Vec4):
+            {
+                glBufferSubData(GL_UNIFORM_BUFFER, row.offset, sizeof(float) * 4, glm::value_ptr(std::get<glm::vec4>(row.value)));
+                break;
+            }
+            case (Mat4):
+            {
+                glBufferSubData(GL_UNIFORM_BUFFER, row.offset, sizeof(float) * 16, glm::value_ptr(std::get<glm::mat4>(row.value)));
+                break;
+            }
+        }
+}
+
+void Frender::GLTools::UniformBuffer::set(const std::string &name, UniformType value)
+{
+    // Horribly inefficient
+    for (auto i : data)
+    {
+        if (i.name == name)
+        {
+            i.value = value;
+
+            setBufferValue(i);
+        }
+    }
+}
+
+void Frender::GLTools::UniformBuffer::enable()
+{
+    glBindBuffer(GL_UNIFORM_BUFFER, handle);
+    glBindBufferBase(GL_UNIFORM_BUFFER, 0, handle);
+}
+
+void Frender::GLTools::UniformRef::enable()
+{
+    glBindBuffer(GL_UNIFORM_BUFFER, handle);
+    glBindBufferBase(GL_UNIFORM_BUFFER, 0, handle);
 }

@@ -7,6 +7,9 @@ void Frender::Renderer::bulkRender()
     for (auto i : render_objects)
     {
         i.mesh.enable();
+
+        // Enable material UBO
+        i.mat.uniforms.enable();
         
         // Set important uniforms
         i.mat.shader.setUniforms(projection * inv_camera * i.transform, i.transform);

@@ -17,7 +17,7 @@ namespace Frender
     class Renderer;
 
     // Typedefs
-    typedef std::variant<uint32_t, int32_t, float, glm::vec2, glm::vec3, glm::vec4, glm::mat4> UniformType;
+    typedef GLTools::UniformType UniformType;
     enum RenderType
     {
         Bulk,
@@ -50,8 +50,7 @@ namespace Frender
 
     struct Material
     {
-        std::map<std::string, UniformType> uniforms;
-        uint32_t handle;
+        GLTools::UniformBuffer uniforms;
         GLTools::Shader shader;
         RenderType type;
     };
@@ -64,7 +63,7 @@ namespace Frender
     struct MaterialRef
     {
         Material* mat_ref;
-        uint32_t handle;
+        GLTools::UniformRef uniforms;
         GLTools::Shader shader;
     };
 
