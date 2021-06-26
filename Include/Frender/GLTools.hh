@@ -5,14 +5,16 @@
 #include <vector>
 #include <string>
 #include <variant>
+#include <array>
 
 namespace Frender::GLTools
 {
     struct Vertex
     {
-        Vertex(float a, float b, float c): position(a, b, c) {}
+        Vertex(float a, float b, float c, float tx, float ty): position(a, b, c), tex_coords(tx, ty) {}
         // TODO: Normal, UV, tangent/bitangent
         glm::vec3 position;
+        glm::vec2 tex_coords;
     };
 
     class MeshBuffer
@@ -78,6 +80,7 @@ namespace Frender::GLTools
     {
     public:
         void enable();
+        void destroy();
 
         uint32_t handle;
     };
@@ -91,6 +94,7 @@ namespace Frender::GLTools
         void set(const std::string& name, UniformType value);
 
         void enable();
+        void destroy();
 
         UniformRef getRef() {return UniformRef {handle};};
 
@@ -101,7 +105,49 @@ namespace Frender::GLTools
         std::vector<_UniformRow> data;
     };
 
+    /**
+    Wrapper class for an OpenGL Texture. All textures must be 8 bit RGBA
+    */
+    class Texture
+    {
+    public:
+        Texture() {};
+        Texture(int width, int height, const unsigned char* data);
+
+        void destroy();
+
+        uint32_t handle;
+    private:
+        
+    };
+
+    struct _TexStore
+    {
+        bool exists;
+        std::string name;
+        Texture tex;
+        uint32_t location;
+    };
+
+    /**
+    Class that manages textures, I guess
+    */
+    class TextureManager
+    {
+    public:
+        TextureManager(): size(0) {};
+        TextureManager(Shader shader) : shader(shader), size(0) {}
+
+        void set(const std::string& name, Texture tex);
+
+        void enable();
     
+    private:
+        Shader shader;
+        int size;
+
+        std::array<_TexStore, 8> data;
+    };
 }
 
 #endif

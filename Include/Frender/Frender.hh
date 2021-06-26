@@ -25,6 +25,7 @@ namespace Frender
     };
     typedef uint32_t MeshRef;
     typedef GLTools::Vertex Vertex;
+    typedef GLTools::Texture Texture;
 
     struct WindowSettings
     {
@@ -53,6 +54,7 @@ namespace Frender
         GLTools::UniformBuffer uniforms;
         GLTools::Shader shader;
         RenderType type;
+        GLTools::TextureManager textures;
     };
 
     /*
@@ -63,6 +65,7 @@ namespace Frender
     struct MaterialRef
     {
         Material* mat_ref;
+        GLTools::TextureManager* textures; // Unfortunately, ptr is needed
         GLTools::UniformRef uniforms;
         GLTools::Shader shader;
     };
@@ -106,6 +109,11 @@ namespace Frender
         Material* createMaterial(GLTools::Shader shader);
 
         /**
+        Creates a texture
+        */
+        Texture createTexture(int width, int height, const unsigned char* data);
+
+        /**
         Uploads a mesh to the GPU. No copy of the mesh is stored on the CPU
         */
         MeshRef createMesh(const std::vector<Vertex>& vertices, const std::vector<uint32_t>& indices);
@@ -136,6 +144,7 @@ namespace Frender
         std::vector<Material> materials;
         std::vector<RenderObject> render_objects;
         std::vector<GLTools::MeshBuffer> meshes;
+        std::vector<Texture> textures;
 
         // Useful info
         glm::mat4 camera;

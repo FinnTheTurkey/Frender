@@ -52,6 +52,7 @@ Frender::Material* Frender::Renderer::createMaterial()
     mat.shader = stage1_bulk_shader;
     mat.type = Bulk;
     mat.uniforms = GLTools::UniformBuffer(stage1_bulk_shader, "Material", {{"color", GLTools::Vec3, glm::vec3(1, 0, 0)}});
+    mat.textures = GLTools::TextureManager(stage1_bulk_shader);
     materials.push_back(mat);
 
     return &materials[materials.size()-1];
@@ -66,9 +67,20 @@ Frender::Material* Frender::Renderer::createMaterial(GLTools::Shader shader)
     mat.shader = shader;
     mat.type = Detail;
     mat.uniforms = GLTools::UniformBuffer(shader, "Material", {{"color", GLTools::Vec3, glm::vec3(1, 0, 0)}});
+    mat.textures = GLTools::TextureManager(shader);
     materials.push_back(mat);
 
     return &materials[materials.size()-1];
+}
+
+Frender::Texture Frender::Renderer::createTexture(int width, int height, const unsigned char *data)
+{
+    Texture tex(width, height, data);
+
+    // Store it so we can safely remove it
+    textures.push_back(tex);
+
+    return tex;
 }
 
 Frender::MeshRef Frender::Renderer::createMesh(const std::vector<Vertex>& vertices, const std::vector<uint32_t>& indices)
@@ -83,7 +95,7 @@ Frender::RenderObjectRef Frender::Renderer::createRenderObject(MeshRef mesh, Mat
     RenderObject r;
     r.transform = transform;
     r.mesh = meshes[mesh];
-    r.mat = {mat, mat->uniforms.getRef(), mat->shader};
+    r.mat = {mat, &mat->textures, mat->uniforms.getRef(), mat->shader};
 
     render_objects.push_back(r);
     uint32_t* index = new uint32_t(render_objects.size()-1);

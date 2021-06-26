@@ -28,8 +28,11 @@ Frender::GLTools::MeshBuffer::MeshBuffer(const std::vector<Vertex>& vertices, co
     glBufferData(GL_ELEMENT_ARRAY_BUFFER, indices.size() * sizeof(uint32_t), &indices[0], GL_STATIC_DRAW);
 
     // Tell OpenGL what the data we just gave it means
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)0);
     glEnableVertexAttribArray(0);
+
+    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)(3 * sizeof(float)));
+    glEnableVertexAttribArray(1);
 
     // We have to store the # of indices so we know
     // how many points to draw
@@ -300,4 +303,59 @@ void Frender::GLTools::UniformRef::enable()
 {
     glBindBuffer(GL_UNIFORM_BUFFER, handle);
     glBindBufferBase(GL_UNIFORM_BUFFER, 0, handle);
+}
+
+void Frender::GLTools::UniformBuffer::destroy()
+{
+    glDeleteBuffers(1, &handle);
+}
+
+void Frender::GLTools::UniformRef::destroy()
+{
+    glDeleteBuffers(1, &handle);
+}
+
+// ====================================================================
+// Texture
+// ====================================================================
+
+Frender::GLTools::Texture::Texture(int width, int height, const unsigned char* data)
+{
+    glGenTextures(1, &handle);
+    glBindTexture(GL_TEXTURE_2D, handle);
+
+    // Set options
+    // TODO: Make these user editable
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+    // Add data
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGB, GL_UNSIGNED_BYTE, data);
+    glGenerateMipmap(GL_TEXTURE_2D);
+}
+
+void Frender::GLTools::Texture::destroy()
+{
+    glDeleteTextures(1, &handle);
+}
+
+void Frender::GLTools::TextureManager::set(const std::string &name, Texture tex)
+{
+    uint32_t loc = glGetUniformLocation(shader.program, name.c_str());
+    data[size] = {true, name, tex, loc};
+    size ++;
+}
+
+void Frender::GLTools::TextureManager::enable()
+{
+    // TODO: Don't re-bind textures
+    auto pos = GL_TEXTURE0;
+    for (int i = 0; i < size; i++)
+    {
+        glActiveTexture(pos);
+        glBindTexture(GL_TEXTURE_2D, data[i].tex.handle);
+        glUniform1i(data[i].location, i);
+    }
 }
