@@ -6,6 +6,7 @@
 
 #include <iostream>
 #include <unordered_map>
+#include <functional>
 
 // A stupid solution to a stupid problem
 static std::unordered_map<GLFWwindow*, Frender::Window*> window_windows;
@@ -71,7 +72,7 @@ void Frender::Window::_sizeCallback(int width, int height)
     }
 }
 
-void Frender::Window::mainloop(Renderer* render)
+void Frender::Window::mainloop(Renderer* render, std::function<void(float)> fn)
 {
     renderer = render;
 
@@ -84,7 +85,8 @@ void Frender::Window::mainloop(Renderer* render)
         float delta = glfwGetTime() - time;
         time = glfwGetTime();
 
-        // TODO: Run callback here
+        fn(delta);
+
         renderer->render(delta);
 
         glfwSwapBuffers(window);

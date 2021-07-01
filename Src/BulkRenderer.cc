@@ -16,7 +16,7 @@ void Frender::Renderer::bulkRender()
 
         // Enable textures
         // Cache miss :(
-        i.mat.textures->enable();
+        getMaterial(i.mat.mat_ref)->textures.enable();
 
         glDrawElements(GL_TRIANGLES, i.mesh.num_indices, GL_UNSIGNED_INT, 0);
     }

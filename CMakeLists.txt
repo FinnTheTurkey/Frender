@@ -13,7 +13,7 @@ set(CMAKE_CXX_STANDARD 17)
 # - output file: data.h
 # - variable name declared in output file: DATA
 # - data length: sizeof(DATA)
-# embed_resource("data.dat" "data.h" "DATA")
+# embed_resource("data.glsl" "data.h" "DATA")
 ####################################################################################################
 
 function(embed_resource resource_file_name source_file_name variable_name)

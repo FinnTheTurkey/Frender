@@ -6,6 +6,7 @@ in vec2 tex_coords;
 layout (std140) uniform Material 
 {
     vec3 color;
+    int has_texture;
 };
 
 uniform sampler2D tex;
@@ -13,5 +14,12 @@ uniform sampler2D tex;
 void main()
 {
     // FragColor = vec4(color, 1.0f);
-    FragColor = texture(tex, tex_coords);
+    if (has_texture == 1)
+    {
+        FragColor = texture(tex, tex_coords);
+    }
+    else
+    {
+        FragColor = vec4(color, 1.0f);
+    }
 } 

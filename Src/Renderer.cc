@@ -38,7 +38,7 @@ void Frender::Renderer::setRenderResolution(int new_width, int new_height)
     height = new_height;
 }
 
-Frender::Material* Frender::Renderer::createMaterial()
+uint32_t Frender::Renderer::createMaterial()
 {
     Material mat;
 
@@ -51,14 +51,17 @@ Frender::Material* Frender::Renderer::createMaterial()
 
     mat.shader = stage1_bulk_shader;
     mat.type = Bulk;
-    mat.uniforms = GLTools::UniformBuffer(stage1_bulk_shader, "Material", {{"color", GLTools::Vec3, glm::vec3(1, 0, 0)}});
+    mat.uniforms = GLTools::UniformBuffer(stage1_bulk_shader, "Material", {
+        {"color", GLTools::Vec3, glm::vec3(1, 0, 0)},
+        {"has_texture", GLTools::Int, 0}
+    });
     mat.textures = GLTools::TextureManager(stage1_bulk_shader);
     materials.push_back(mat);
 
-    return &materials[materials.size()-1];
+    return materials.size()-1;
 }
 
-Frender::Material* Frender::Renderer::createMaterial(GLTools::Shader shader)
+uint32_t Frender::Renderer::createMaterial(GLTools::Shader shader)
 {
     Material mat;
 
@@ -66,11 +69,19 @@ Frender::Material* Frender::Renderer::createMaterial(GLTools::Shader shader)
 
     mat.shader = shader;
     mat.type = Detail;
-    mat.uniforms = GLTools::UniformBuffer(shader, "Material", {{"color", GLTools::Vec3, glm::vec3(1, 0, 0)}});
+    mat.uniforms = GLTools::UniformBuffer(shader, "Material", {
+        {"color", GLTools::Vec3, glm::vec3(1, 0, 0)},
+        {"has_texture", GLTools::Int, 0}
+    });
     mat.textures = GLTools::TextureManager(shader);
     materials.push_back(mat);
 
-    return &materials[materials.size()-1];
+    return materials.size()-1;
+}
+
+Frender::Material* Frender::Renderer::getMaterial(uint32_t material)
+{
+    return &materials[material];
 }
 
 Frender::Texture Frender::Renderer::createTexture(int width, int height, const unsigned char *data)
@@ -89,17 +100,31 @@ Frender::MeshRef Frender::Renderer::createMesh(const std::vector<Vertex>& vertic
     return meshes.size()-1;
 }
 
-Frender::RenderObjectRef Frender::Renderer::createRenderObject(MeshRef mesh, Material* mat, glm::mat4 transform)
+Frender::RenderObjectRef Frender::Renderer::createRenderObject(MeshRef mesh, uint32_t mat, glm::mat4 transform)
 {
     // TODO: Insert in a sorted fasion
+
+    auto m = getMaterial(mat);
+
     RenderObject r;
     r.transform = transform;
     r.mesh = meshes[mesh];
-    r.mat = {mat, &mat->textures, mat->uniforms.getRef(), mat->shader};
+    r.mat = {mat, m->uniforms.getRef(), m->shader};
 
     render_objects.push_back(r);
     uint32_t* index = new uint32_t(render_objects.size()-1);
-    render_objects[*index].pos = index;
+
+    render_objects[(*index)].pos = index;
 
     return {index, this};
+}
+
+glm::mat4 Frender::RenderObjectRef::getTransform()
+{
+    return renderer->_getRenderObject(index)->transform;
+}
+
+void Frender::RenderObjectRef::setTransform(glm::mat4 t)
+{
+    renderer->_getRenderObject(index)->transform = t;
 }

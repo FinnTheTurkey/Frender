@@ -7,6 +7,7 @@
 #include <glm/glm.hpp>
 #include <memory>
 #include <vector>
+#include <functional>
 
 #include "Frender/GLTools.hh"
 
@@ -41,7 +42,7 @@ namespace Frender
         Window(WindowSettings settings);
         ~Window();
 
-        void mainloop(Renderer* renderer);
+        void mainloop(Renderer* renderer, std::function<void(float)> fn);
 
         void _sizeCallback(int width, int height);
     private:
@@ -64,8 +65,8 @@ namespace Frender
     */
     struct MaterialRef
     {
-        Material* mat_ref;
-        GLTools::TextureManager* textures; // Unfortunately, ptr is needed
+        uint32_t mat_ref;
+        // GLTools::TextureManager* textures; // Unfortunately, ptr is needed
         GLTools::UniformRef uniforms;
         GLTools::Shader shader;
     };
@@ -84,8 +85,11 @@ namespace Frender
     class RenderObjectRef
     {
     public:
+        RenderObjectRef():renderer(nullptr) {};
         RenderObjectRef(uint32_t* index, Renderer* renderer):index(index), renderer(renderer) {}
-        // TODO: Add functions for stuff
+        
+        glm::mat4 getTransform();
+        void setTransform(glm::mat4 t);
 
     private:
         uint32_t* index;
@@ -105,8 +109,15 @@ namespace Frender
         If no shaders are specified, it will use the bulk shader.
         Only Materials based on the bulk shader can be used by the bulk renderer
         */
-        Material* createMaterial();
-        Material* createMaterial(GLTools::Shader shader);
+        uint32_t createMaterial();
+        uint32_t createMaterial(GLTools::Shader shader);
+
+        /**
+        Gets the material as a pointer
+        NOTE: This pointer is not guarenteed to always point
+        at the material, and therefore shouldn't be stored anywhere
+        */
+        Material* getMaterial(uint32_t material);
 
         /**
         Creates a texture
@@ -122,7 +133,7 @@ namespace Frender
         Creates a render object - aka a thing with a mesh and a material
         This thing will appear when the scene is rendered
         */
-        RenderObjectRef createRenderObject(MeshRef mesh, Material* mat, glm::mat4 transform);
+        RenderObjectRef createRenderObject(MeshRef mesh, uint32_t mat, glm::mat4 transform);
 
         void setCamera(const glm::mat4& matrix);
 
@@ -135,6 +146,11 @@ namespace Frender
         float fov_rad = 1.57;
         float near_distance = 0.01;
         float far_distance = 100;
+
+        RenderObject* _getRenderObject(uint32_t* index)
+        {
+            return &render_objects[(*index)];
+        }
 
     private:
         /** Shaders used for Stage1 of the Bulk rendering process */

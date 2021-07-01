@@ -194,8 +194,12 @@ Frender::GLTools::UniformBuffer::UniformBuffer(Shader shader, std::string ub_nam
     std::vector<const char*> names_for_gl;
     for (auto i : values_info)
     {
-        // This should hopefully work
-        names_for_gl.push_back(i.name.c_str());
+        // This is utterly horrible, yet nessesairy
+        char* x = new char[i.name.length()];
+        auto length = i.name.copy(x, i.name.length(), 0);
+        x[length] = '\0';
+
+        names_for_gl.push_back(x);
     }
 
     // This is getting the "id" of each of the uniforms in the ubo
@@ -240,43 +244,51 @@ Frender::GLTools::UniformBuffer::UniformBuffer(Shader shader, std::string ub_nam
 
         setBufferValue(data[i]);
     }
+
+    // Free the memory that I shouldn't've had to allocate in the first place
+    for (auto i : names_for_gl)
+    {
+        delete[] i;
+    }
 }
 
 void Frender::GLTools::UniformBuffer::setBufferValue(const _UniformRow& row)
 {
     switch (row.type)
+    {
+        case (Int):
         {
-            case (Int):
-            {
-                glBufferSubData(GL_UNIFORM_BUFFER, row.offset, sizeof(int32_t), &std::get<int32_t>(row.value));
-                break;
-            }
-            case (Float):
-            {
-                glBufferSubData(GL_UNIFORM_BUFFER, row.offset, sizeof(float), &std::get<float>(row.value));
-                break;
-            }
-            case (Vec2):
-            {
-                glBufferSubData(GL_UNIFORM_BUFFER, row.offset, sizeof(float) * 2, glm::value_ptr(std::get<glm::vec2>(row.value)));
-                break;
-            }
-            case (Vec3):
-            {
-                glBufferSubData(GL_UNIFORM_BUFFER, row.offset, sizeof(float) * 3, glm::value_ptr(std::get<glm::vec3>(row.value)));
-                break;
-            }
-            case (Vec4):
-            {
-                glBufferSubData(GL_UNIFORM_BUFFER, row.offset, sizeof(float) * 4, glm::value_ptr(std::get<glm::vec4>(row.value)));
-                break;
-            }
-            case (Mat4):
-            {
-                glBufferSubData(GL_UNIFORM_BUFFER, row.offset, sizeof(float) * 16, glm::value_ptr(std::get<glm::mat4>(row.value)));
-                break;
-            }
+            const int32_t* vi = &std::get<int32_t>(row.value);
+            glBufferSubData(GL_UNIFORM_BUFFER, row.offset, sizeof(int32_t), vi);
+            break;
         }
+        case (Float):
+        {
+            const float* vf = &std::get<float>(row.value);
+            glBufferSubData(GL_UNIFORM_BUFFER, row.offset, sizeof(float), vf);
+            break;
+        }
+        case (Vec2):
+        {
+            glBufferSubData(GL_UNIFORM_BUFFER, row.offset, sizeof(float) * 2, glm::value_ptr(std::get<glm::vec2>(row.value)));
+            break;
+        }
+        case (Vec3):
+        {
+            glBufferSubData(GL_UNIFORM_BUFFER, row.offset, sizeof(float) * 3, glm::value_ptr(std::get<glm::vec3>(row.value)));
+            break;
+        }
+        case (Vec4):
+        {
+            glBufferSubData(GL_UNIFORM_BUFFER, row.offset, sizeof(float) * 4, glm::value_ptr(std::get<glm::vec4>(row.value)));
+            break;
+        }
+        case (Mat4):
+        {
+            glBufferSubData(GL_UNIFORM_BUFFER, row.offset, sizeof(float) * 16, glm::value_ptr(std::get<glm::mat4>(row.value)));
+            break;
+        }
+    }
 }
 
 void Frender::GLTools::UniformBuffer::set(const std::string &name, UniformType value)
@@ -332,7 +344,7 @@ Frender::GLTools::Texture::Texture(int width, int height, const unsigned char* d
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 
     // Add data
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGB, GL_UNSIGNED_BYTE, data);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, data);
     glGenerateMipmap(GL_TEXTURE_2D);
 }
 
@@ -357,5 +369,6 @@ void Frender::GLTools::TextureManager::enable()
         glActiveTexture(pos);
         glBindTexture(GL_TEXTURE_2D, data[i].tex.handle);
         glUniform1i(data[i].location, i);
+        pos ++;
     }
 }
