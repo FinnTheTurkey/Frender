@@ -45,6 +45,15 @@ namespace Frender
         void mainloop(Renderer* renderer, std::function<void(float)> fn);
 
         void _sizeCallback(int width, int height);
+
+        void setWindowTitle(const std::string& title);
+
+        void setVsync(bool value);
+
+        // Stats
+        // The time_time is the time it took the engine to process and render the frame,
+        double time_time;
+
     private:
         GLFWwindow* window;
         Renderer* renderer;
@@ -147,6 +156,11 @@ namespace Frender
         float near_distance = 0.01;
         float far_distance = 100;
 
+        // Stats
+        uint64_t frame_count;
+        double frame_rate;
+        double frame_time;
+
         RenderObject* _getRenderObject(uint32_t* index)
         {
             return &render_objects[(*index)];
@@ -170,6 +184,10 @@ namespace Frender
         // Less easily changed settings
         int width;
         int height;
+        
+        // Internal stats
+        double elapsed_time;
+        double elapsed_frames;
 
         // Functions
         void bulkRender();

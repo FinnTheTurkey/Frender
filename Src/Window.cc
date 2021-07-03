@@ -7,6 +7,7 @@
 #include <iostream>
 #include <unordered_map>
 #include <functional>
+#include <sstream>
 
 // A stupid solution to a stupid problem
 static std::unordered_map<GLFWwindow*, Frender::Window*> window_windows;
@@ -58,6 +59,7 @@ Frender::Window::Window(Frender::WindowSettings settings)
     // callbacks is too difficult for a library like glfw to implement
     window_windows[window] = this;
 
+    glfwMakeContextCurrent(window);
     glfwGetFramebufferSize(window, &settings.width, &settings.height);
     glfwSetFramebufferSizeCallback(window, framebuffer_size_callback);
     glViewport(0, 0, settings.width, settings.height);
@@ -70,6 +72,35 @@ void Frender::Window::_sizeCallback(int width, int height)
         // TODO: Allow this to be manually overridden
         renderer->setRenderResolution(width, height);
     }
+}
+
+void showFPS(GLFWwindow* window)
+{
+    static double previousSeconds = 0.0;
+    static int frameCount = 0;
+    double elapsedSeconds;
+    double currentSeconds = glfwGetTime(); // Time since start (s)
+
+    elapsedSeconds = currentSeconds - previousSeconds;
+
+    // Limit text update to 4/second
+    if (elapsedSeconds > 0.25) {
+        previousSeconds = currentSeconds;
+        double fps = (double)frameCount / elapsedSeconds;
+        double msPerFrame = 1000.0 / fps;
+
+        std::ostringstream outs;
+        outs.precision(3); // Set precision of numbers
+
+        outs << std::fixed << "FluxTest" << " - " << "FPS: " << fps << " Frame time: " << msPerFrame << "ms";
+
+        glfwSetWindowTitle(window, outs.str().c_str());
+
+        // Reset frame count
+        frameCount = 0;
+    }
+
+    frameCount ++;
 }
 
 void Frender::Window::mainloop(Renderer* render, std::function<void(float)> fn)
@@ -85,12 +116,25 @@ void Frender::Window::mainloop(Renderer* render, std::function<void(float)> fn)
         float delta = glfwGetTime() - time;
         time = glfwGetTime();
 
+        double stime = glfwGetTime();
         fn(delta);
 
         renderer->render(delta);
+        time_time = glfwGetTime() - time;
 
+        // showFPS(window);
         glfwSwapBuffers(window);
     }
+}
+
+void Frender::Window::setWindowTitle(const std::string &title)
+{
+    glfwSetWindowTitle(window, title.c_str());
+}
+
+void Frender::Window::setVsync(bool value)
+{
+    glfwSwapInterval(value);
 }
 
 Frender::Window::~Window()

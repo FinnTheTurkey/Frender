@@ -148,6 +148,8 @@ namespace Frender::GLTools
 
         std::array<_TexStore, 8> data;
     };
+
+    long long getVramUsage();
 }
 
 #endif

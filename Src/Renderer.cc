@@ -16,13 +16,31 @@ Frender::Renderer::Renderer(int width, int height)
 
 void Frender::Renderer::render(float delta)
 {
+    // Count framerate
+    // frame_count ++;
+    // elapsed_time += delta;
+    // elapsed_frames ++;
+
+    // if (elapsed_time > 0.25)
+    // {
+    //     // Calculate FPS
+    //     frame_time = elapsed_time/elapsed_frames;
+    //     frame_rate = 1.0 / frame_time;
+    //     elapsed_time = 0;
+    //     elapsed_frames = 0;
+    // }
+
     glClearColor(0.2f, 0.3f, 0.3f, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+    glEnable(GL_DEPTH_TEST);
 
     // TODO: Orthographic?
     projection = glm::perspective(fov_rad, (float)width/height, near_distance, far_distance);
 
     bulkRender();
+
+    std::cout << Frender::GLTools::getVramUsage() << std::endl;
 }
 
 void Frender::Renderer::setCamera(const glm::mat4 &matrix)

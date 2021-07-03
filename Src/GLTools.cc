@@ -8,6 +8,8 @@
 // Mesh Buffer
 // ====================================================================
 
+static long long vram_usage = 0;
+
 Frender::GLTools::MeshBuffer::MeshBuffer(const std::vector<Vertex>& vertices, const std::vector<uint32_t>& indices)
 {
     // Create buffer
@@ -23,9 +25,13 @@ Frender::GLTools::MeshBuffer::MeshBuffer(const std::vector<Vertex>& vertices, co
     glBindBuffer(GL_ARRAY_BUFFER, vbo);
     glBufferData(GL_ARRAY_BUFFER, vertices.size() * sizeof(Vertex), &vertices[0], GL_STATIC_DRAW);
 
+    vram_usage += vertices.size() * sizeof(Vertex);
+
     // Insert indices
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ebo);
     glBufferData(GL_ELEMENT_ARRAY_BUFFER, indices.size() * sizeof(uint32_t), &indices[0], GL_STATIC_DRAW);
+
+    vram_usage += indices.size() * sizeof(Vertex);
 
     // Tell OpenGL what the data we just gave it means
     glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)0);
@@ -58,6 +64,8 @@ void Frender::GLTools::MeshBuffer::destroy()
         glDeleteBuffers(1, &vbo);
         glDeleteBuffers(1, &ebo);
         glDeleteVertexArrays(1, &vao);
+
+        // TODO: Reduce vram_usage
     }
 }
 
@@ -232,6 +240,8 @@ Frender::GLTools::UniformBuffer::UniformBuffer(Shader shader, std::string ub_nam
     glBindBuffer(GL_UNIFORM_BUFFER, handle);
     glBufferData(GL_UNIFORM_BUFFER, block_size, NULL, GL_DYNAMIC_DRAW);
 
+    vram_usage += block_size;
+
     // Bind this buffer to the binding point we specified at the top
     // Which also binds it to the ubo specified by the shader
     // This line must be called everytime we switch UBOs
@@ -320,11 +330,13 @@ void Frender::GLTools::UniformRef::enable()
 void Frender::GLTools::UniformBuffer::destroy()
 {
     glDeleteBuffers(1, &handle);
+    // TODO: decrement vram_usage variable
 }
 
 void Frender::GLTools::UniformRef::destroy()
 {
     glDeleteBuffers(1, &handle);
+    // TODO: decrement vram_usage variable
 }
 
 // ====================================================================
@@ -346,11 +358,15 @@ Frender::GLTools::Texture::Texture(int width, int height, const unsigned char* d
     // Add data
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, data);
     glGenerateMipmap(GL_TEXTURE_2D);
+
+    vram_usage += width * height * 4;
 }
 
 void Frender::GLTools::Texture::destroy()
 {
     glDeleteTextures(1, &handle);
+
+    // TODO: decrement vram_usage variable
 }
 
 void Frender::GLTools::TextureManager::set(const std::string &name, Texture tex)
@@ -371,4 +387,9 @@ void Frender::GLTools::TextureManager::enable()
         glUniform1i(data[i].location, i);
         pos ++;
     }
+}
+
+long long Frender::GLTools::getVramUsage()
+{
+    return vram_usage;
 }
