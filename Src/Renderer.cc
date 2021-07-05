@@ -17,7 +17,7 @@ Frender::Renderer::Renderer(int width, int height)
 void Frender::Renderer::render(float delta)
 {
     // Count framerate
-    // frame_count ++;
+    frame_count ++;
     // elapsed_time += delta;
     // elapsed_frames ++;
 
@@ -40,7 +40,8 @@ void Frender::Renderer::render(float delta)
 
     bulkRender();
 
-    std::cout << Frender::GLTools::getVramUsage() << std::endl;
+    // std::cout << Frender::GLTools::getVramUsage() << std::endl;
+    // std::cout << frame_count << "\n";
 }
 
 void Frender::Renderer::setCamera(const glm::mat4 &matrix)

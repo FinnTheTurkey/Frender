@@ -69,14 +69,15 @@ void Frender::GLTools::MeshBuffer::destroy()
     }
 }
 
-// ====================================================================
-// Shader
-// ====================================================================
-
 void Frender::GLTools::MeshBuffer::enable()
 {
     glBindVertexArray(vao);
 }
+
+
+// ====================================================================
+// Shader
+// ====================================================================
 
 Frender::GLTools::Shader::Shader(const std::string& vert, const std::string& frag)
 {

@@ -122,14 +122,21 @@ void Frender::Window::mainloop(Renderer* render, std::function<void(float)> fn)
         renderer->render(delta);
         time_time = glfwGetTime() - time;
 
-        // showFPS(window);
+        showFPS(window);
+        // Really bad artificial delay
+        // while (glfwGetTime() - time < 0.000001)
+        // {
+        //     // Delay
+        // }
+
         glfwSwapBuffers(window);
     }
 }
 
 void Frender::Window::setWindowTitle(const std::string &title)
 {
-    glfwSetWindowTitle(window, title.c_str());
+    const char* x = title.c_str();
+    glfwSetWindowTitle(window, x);
 }
 
 void Frender::Window::setVsync(bool value)
