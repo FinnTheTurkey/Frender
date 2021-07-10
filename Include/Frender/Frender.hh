@@ -105,6 +105,23 @@ namespace Frender
         Renderer* renderer;
     };
 
+    struct PointLight
+    {
+        glm::vec3 color;
+        glm::vec3 position;
+        float radius;
+    };
+
+    struct _LightUniforms
+    {
+        uint32_t width;
+        uint32_t height;
+        uint32_t color;
+        uint32_t cam_pos;
+        uint32_t light_pos;
+        uint32_t radius;
+    };
+
     class Renderer
     {
     public:
@@ -151,6 +168,11 @@ namespace Frender
         */
         void setRenderResolution(int new_width, int new_height);
 
+        /**
+        Creates a point light, the most basic type of light
+        */
+        uint32_t createPointLight(glm::vec3 position, glm::vec3 color, float radius);
+
         // Settings
         float fov_rad = 1.57;
         float near_distance = 0.01;
@@ -170,11 +192,37 @@ namespace Frender
         /** Shaders used for Stage1 of the Bulk rendering process */
         GLTools::Shader stage1_bulk_shader;
 
+        // TODO: Stage 2 shaders aka lighting pass
+        GLTools::Shader stage2_light_shader;
+        _LightUniforms light_uniforms;
+
+        // Shaders used to show the final result - post processing goes here
+        GLTools::Shader stage3_shader;
+
+        // The plane which the final image is rendered on
+        GLTools::MeshBuffer plane;
+
+        // Mesh which represents a light
+        GLTools::MeshBuffer light_sphere;
+
+        // Stage 2 framebuffer and materials
+        GLTools::Framebuffer stage2_fbo;
+        GLTools::TextureManager stage2_tex;
+        bool has_stage2;
+
+        // Stage 3 framebuffer and materials
+        GLTools::Framebuffer stage3_fbo;
+        GLTools::TextureManager stage3_tex;
+        bool has_stage3;
+
         // Pools
         std::vector<Material> materials;
         std::vector<RenderObject> render_objects;
         std::vector<GLTools::MeshBuffer> meshes;
         std::vector<Texture> textures;
+
+        // Pools of lights
+        std::vector<PointLight> point_lights;
 
         // Useful info
         glm::mat4 camera;

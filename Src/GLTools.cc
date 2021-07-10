@@ -34,11 +34,24 @@ Frender::GLTools::MeshBuffer::MeshBuffer(const std::vector<Vertex>& vertices, co
     vram_usage += indices.size() * sizeof(Vertex);
 
     // Tell OpenGL what the data we just gave it means
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)0);
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 14 * sizeof(float), (void*)0);
     glEnableVertexAttribArray(0);
 
-    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)(3 * sizeof(float)));
+    // Normals
+    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 14 * sizeof(float), (void*)(3 * sizeof(float)));
     glEnableVertexAttribArray(1);
+
+    // tex coords
+    glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, 14 * sizeof(float), (void*)(6 * sizeof(float)));
+    glEnableVertexAttribArray(2);
+
+    // Tangents
+    glVertexAttribPointer(3, 3, GL_FLOAT, GL_FALSE, 14 * sizeof(float), (void*)(8 * sizeof(float)));
+    glEnableVertexAttribArray(3);
+
+    // Bitangents
+    glVertexAttribPointer(4, 3, GL_FLOAT, GL_FALSE, 14 * sizeof(float), (void*)(11 * sizeof(float)));
+    glEnableVertexAttribArray(4);
 
     // We have to store the # of indices so we know
     // how many points to draw
@@ -178,6 +191,26 @@ void Frender::GLTools::Shader::setUniforms(glm::mat4 mvp, glm::mat4 m)
 {
     glUniformMatrix4fv(mvp_location, 1, GL_FALSE, glm::value_ptr(mvp));
     glUniformMatrix4fv(m_location, 1, GL_FALSE, glm::value_ptr(m));
+}
+
+uint32_t Frender::GLTools::Shader::getUniformLocation(const std::string &name)
+{
+    return glGetUniformLocation(program, name.c_str());
+}
+
+void Frender::GLTools::Shader::setUniform(uint32_t loc, int value)
+{
+    glUniform1i(loc, value);
+}
+
+void Frender::GLTools::Shader::setUniform(uint32_t loc, float value)
+{
+    glUniform1f(loc, value);
+}
+
+void Frender::GLTools::Shader::setUniform(uint32_t loc, glm::vec3 value)
+{
+    glUniform3f(loc, value.x, value.y, value.z);
 }
 
 // ====================================================================
@@ -372,7 +405,9 @@ void Frender::GLTools::Texture::destroy()
 
 void Frender::GLTools::TextureManager::set(const std::string &name, Texture tex)
 {
+    GLERRORCHECK();
     uint32_t loc = glGetUniformLocation(shader.program, name.c_str());
+    GLERRORCHECK();
     data[size] = {true, name, tex, loc};
     size ++;
 }
@@ -393,4 +428,148 @@ void Frender::GLTools::TextureManager::enable()
 long long Frender::GLTools::getVramUsage()
 {
     return vram_usage;
+}
+
+// ====================================================================
+// Framebuffer
+// ====================================================================
+Frender::GLTools::Framebuffer::Framebuffer(int width, int height, const std::vector<TextureTypes>& textures)
+: width(width), height(height)
+{
+    GLERRORCHECK();
+    
+    // Create framebuffer
+    glGenFramebuffers(1, &framebuffer);
+    glBindFramebuffer(GL_FRAMEBUFFER, framebuffer);
+
+    GLERRORCHECK();
+
+    // Resize array
+    colors.resize(textures.size());
+    gl_enums.resize(textures.size());
+
+    int c = 0;
+    for (auto i : textures)
+    {
+        // Get type of texture
+        uint32_t type;
+        uint32_t val;
+        switch (textures[c])
+        {
+        case (RGB8): type = GL_RGB; val = GL_UNSIGNED_BYTE; break;
+        case (RGBA8): type = GL_RGBA; val = GL_UNSIGNED_BYTE; break;
+        case (RGBA16): type = GL_RGBA16F; val = GL_FLOAT; break;
+        }
+
+        GLERRORCHECK();
+
+        // Create texture for color buffer
+        uint32_t tx;
+        glGenTextures(1, &tx);
+        glBindTexture(GL_TEXTURE_2D, tx);
+
+        GLERRORCHECK();
+
+        // Allocate space (but don't fill it)
+        glTexImage2D(GL_TEXTURE_2D, 0, type, width, height, 0, GL_RGBA, val, NULL);
+        // glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
+        
+        GLERRORCHECK();
+
+        // Set parameters
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+
+        // Attach color texture to framebuffer
+        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0 + c, GL_TEXTURE_2D, tx, 0);
+        
+        GLERRORCHECK();
+
+        // Add it to the array of enums
+        gl_enums[c] = GL_COLOR_ATTACHMENT0 + c;
+        colors[c] = tx;
+        c++;
+    }
+
+    // Create Renderbuffer for depth and stencil buffers
+    // We may want to change this later
+    glGenRenderbuffers(1, &depth_stencil);
+
+    glBindRenderbuffer(GL_RENDERBUFFER, depth_stencil);
+    glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH24_STENCIL8, width, height);
+    // glBindRenderbuffer(GL_RENDERBUFFER, 0);
+
+    // Attach depth and stencil renderbuffer to fbo
+    glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, GL_RENDERBUFFER, depth_stencil);
+
+    // Tell OpenGL how many buffers there are
+    glDrawBuffers(gl_enums.size(), &gl_enums[0]);
+
+    // Check to make sure it worked correctly
+    auto n = glCheckFramebufferStatus(GL_FRAMEBUFFER);
+    if (n != GL_FRAMEBUFFER_COMPLETE)
+    {
+        std::cerr << "Error creating framebuffer: Framebuffer is incomplete\n";
+        switch (n)
+        {
+        case (GL_FRAMEBUFFER_UNDEFINED): std::cerr << "GL_FRAMEBUFFER_UNDEFINED\n"; break;
+        case (GL_FRAMEBUFFER_INCOMPLETE_ATTACHMENT): std::cerr << "GL_FRAMEBUFFER_INCOMPLETE_ATTACHMENT\n"; break;
+        case (GL_FRAMEBUFFER_INCOMPLETE_MISSING_ATTACHMENT): std::cerr << "GL_FRAMEBUFFER_INCOMPLETE_MISSING_ATTACHMENT\n"; break;
+        case (GL_FRAMEBUFFER_INCOMPLETE_DRAW_BUFFER): std::cerr << "GL_FRAMEBUFFER_INCOMPLETE_DRAW_BUFFER\n"; break;
+        case (GL_FRAMEBUFFER_INCOMPLETE_READ_BUFFER): std::cerr << "GL_FRAMEBUFFER_INCOMPLETE_READ_BUFFER\n"; break;
+        case (GL_FRAMEBUFFER_UNSUPPORTED): std::cerr << "GL_FRAMEBUFFER_UNSUPPORTED\n"; break;
+        case (GL_FRAMEBUFFER_INCOMPLETE_MULTISAMPLE): std::cerr << "GL_FRAMEBUFFER_INCOMPLETE_MULTISAMPLE\n"; break;
+        case (GL_FRAMEBUFFER_INCOMPLETE_LAYER_TARGETS): std::cerr << "GL_FRAMEBUFFER_INCOMPLETE_LAYER_TARGETS\n"; break;
+        }
+    }
+
+    // Normally, I wouldn't bother, but this seems important
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+    GLERRORCHECK();
+}
+
+std::vector<Frender::GLTools::Texture> Frender::GLTools::Framebuffer::getTexture()
+{
+    std::vector<Frender::GLTools::Texture> txes;
+    for (auto i : colors)
+    {
+        txes.push_back(i);
+    }
+    return txes;
+}
+
+void Frender::GLTools::Framebuffer::enable()
+{
+    GLERRORCHECK();
+    glBindFramebuffer(GL_FRAMEBUFFER, framebuffer);
+    GLERRORCHECK();
+}
+
+void Frender::GLTools::Framebuffer::disable()
+{
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+    // uint32_t attachments[1] = {GL_COLOR_ATTACHMENT0};
+    // glDrawBuffers(1, attachments);
+}
+
+void Frender::GLTools::Framebuffer::destroy()
+{
+    glDeleteFramebuffers(1, &framebuffer);
+    for (auto i : colors)
+    {
+        glDeleteTextures(1, &i);
+    }
+    glDeleteRenderbuffers(1, &depth_stencil);
+}
+
+void Frender::GLTools::transferDepthBuffer(Framebuffer* fba, Framebuffer* fbb, int width, int height)
+{
+    glBindFramebuffer(GL_READ_FRAMEBUFFER, fba->framebuffer);
+    glBindFramebuffer(GL_DRAW_FRAMEBUFFER, fbb->framebuffer);
+    glBlitFramebuffer(0, 0, width, height, 0, 0, width, height, GL_DEPTH_BUFFER_BIT, GL_NEAREST);
+    // TODO: Maybe stencil buffer as well?
+
+    fbb->enable();
 }

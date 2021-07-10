@@ -1,25 +1,65 @@
 #version 330 core
-out vec4 FragColor;
+layout (location = 0) out vec4 ColorRoughness;
+layout (location = 1) out vec4 NormalMetallic;
+layout (location = 2) out vec3 position;
+
 
 in vec2 tex_coords;
+in vec3 normal;
+in vec3 world_pos;
+
+in mat3 tbn;
 
 layout (std140) uniform Material 
 {
     vec3 color;
-    int has_texture;
+    float roughness;
+    float metalness;
+    int has_diffuse_map;
+    int has_normal_map;
+    int has_roughness_map;
+    int has_metal_map;
 };
 
-uniform sampler2D tex;
+uniform sampler2D diffuse_map;
+uniform sampler2D metal_map;
+uniform sampler2D normal_map;
+uniform sampler2D roughness_map;
 
 void main()
 {
-    // FragColor = vec4(color, 1.0f);
-    if (has_texture == 1)
+    float rness = roughness;
+    float mness = metalness;
+
+    if (has_roughness_map == 1)
     {
-        FragColor = texture(tex, tex_coords);
+        rness = texture(roughness_map, tex_coords).x;
+    }
+    if (has_metal_map == 1)
+    {
+        mness = texture(metal_map, tex_coords).x;
+    }
+
+    vec3 N = normal.xyz;
+    if (has_normal_map == 1)
+    {
+        N = texture(normal_map, tex_coords).xyz;
+
+        // Make the normal map work properly
+        N = normalize(N * 2.0 - 1.0);
+        N = normalize(tbn * N);
+    }
+
+    NormalMetallic = vec4(N, mness);
+
+    if (has_diffuse_map == 1)
+    {
+        ColorRoughness = vec4(texture(diffuse_map, tex_coords).xyz, rness);
     }
     else
     {
-        FragColor = vec4(color, 1.0f);
+        ColorRoughness = vec4(color, rness);
     }
-} 
+
+    position = world_pos;
+}

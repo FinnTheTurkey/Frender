@@ -33,6 +33,12 @@ endfunction()
 embed_resource("Shaders/stage1.vert" "Include/Frender/Shaders/Stage1Vert.h" "BulkStage1VertSrc")
 embed_resource("Shaders/stage1.frag" "Include/Frender/Shaders/Stage1Frag.h" "BulkStage1FragSrc")
 
+embed_resource("Shaders/stage2light.vert" "Include/Frender/Shaders/Stage2Vert.h" "Stage2VertSrc")
+embed_resource("Shaders/stage2light.frag" "Include/Frender/Shaders/Stage2Frag.h" "Stage2FragSrc")
+
+embed_resource("Shaders/stage3.vert" "Include/Frender/Shaders/Stage3Vert.h" "Stage3VertSrc")
+embed_resource("Shaders/stage3.frag" "Include/Frender/Shaders/Stage3Frag.h" "Stage3FragSrc")
+
 add_library(Frender 
     Src/Window.cc
     Src/Renderer.cc

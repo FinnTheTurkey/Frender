@@ -7,14 +7,34 @@
 #include <variant>
 #include <array>
 
+#define GLERRORCHECK() switch (glGetError()) \
+    { \
+    case(GL_INVALID_ENUM): std::cerr << __FILE__ <<":" << __LINE__ << " GL_INVALID_ENUM\n";break; \
+    case(GL_INVALID_VALUE): std::cerr << __FILE__ <<":" << __LINE__ << " GL_INVALID_VALUE\n";break; \
+    case(GL_INVALID_OPERATION): std::cerr << __FILE__ <<":" << __LINE__ << " GL_INVALID_OPERATION\n";break; \
+    }
+
 namespace Frender::GLTools
 {
     struct Vertex
     {
-        Vertex(float a, float b, float c, float tx, float ty): position(a, b, c), tex_coords(tx, ty) {}
-        // TODO: Normal, UV, tangent/bitangent
+        Vertex(float a, float b, float c,
+            float nx, float ny, float nz,
+            float tx, float ty,
+            float tax, float tay, float taz,
+            float btax, float btay, float btaz
+            )
+        : position(a, b, c),
+        normals(nx, ny, nz),
+        tex_coords(tx, ty),
+        tangent(tax, tay, taz),
+        bitangent(btax, btay, btaz) {}
+
         glm::vec3 position;
+        glm::vec3 normals;
         glm::vec2 tex_coords;
+        glm::vec3 tangent;
+        glm::vec3 bitangent;
     };
 
     class MeshBuffer
@@ -45,6 +65,13 @@ namespace Frender::GLTools
         void enable();
 
         void setUniforms(glm::mat4 mvp, glm::mat4 m);
+
+        // For custom uniforms
+        uint32_t getUniformLocation(const std::string& name);
+
+        void setUniform(uint32_t loc, int value);
+        void setUniform(uint32_t loc, float value);
+        void setUniform(uint32_t loc, glm::vec3 value);
 
         bool created;
         uint32_t program;
@@ -112,6 +139,7 @@ namespace Frender::GLTools
     {
     public:
         Texture() {};
+        Texture(uint32_t handle): handle(handle) {}
         Texture(int width, int height, const unsigned char* data);
 
         void destroy();
@@ -148,6 +176,44 @@ namespace Frender::GLTools
 
         std::array<_TexStore, 8> data;
     };
+
+    enum TextureTypes
+    {
+        RGB8, RGBA8, RGBA16
+    };
+
+    /**
+    Framebuffer class
+    */
+    class Framebuffer
+    {
+    public:
+        Framebuffer() {};
+        Framebuffer(int width, int height, const std::vector<TextureTypes>& textures);
+
+        std::vector<Texture> getTexture();
+
+        void enable();
+        void disable();
+        
+        void destroy();
+
+        uint32_t depth_stencil;
+        uint32_t framebuffer;
+    private:
+        std::vector<uint32_t> colors;
+        std::vector<uint32_t> gl_enums;
+
+        // Settings
+        int width;
+        int height;
+    };
+
+    /**
+    Transfers the depth buffer from fba to fbb.
+    Note: Framebuffers B will be bound at the end of the function
+    */
+    void transferDepthBuffer(Framebuffer* fba, Framebuffer* fbb, int width, int height);
 
     long long getVramUsage();
 }
