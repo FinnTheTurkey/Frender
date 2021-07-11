@@ -112,6 +112,12 @@ namespace Frender
         float radius;
     };
 
+    struct DirectionLight
+    {
+        glm::vec3 color;
+        glm::vec3 direction;
+    };
+
     struct _LightUniforms
     {
         uint32_t width;
@@ -173,6 +179,11 @@ namespace Frender
         */
         uint32_t createPointLight(glm::vec3 position, glm::vec3 color, float radius);
 
+        /**
+        Creates a direction light. Directional lights always apply to all elements of a scene
+        */
+        uint32_t createDirectionalLight(glm::vec3 color, glm::vec3 direction);
+
         // Settings
         float fov_rad = 1.57;
         float near_distance = 0.01;
@@ -192,9 +203,11 @@ namespace Frender
         /** Shaders used for Stage1 of the Bulk rendering process */
         GLTools::Shader stage1_bulk_shader;
 
-        // TODO: Stage 2 shaders aka lighting pass
+        // Stage 2 shaders aka lighting pass
         GLTools::Shader stage2_light_shader;
         _LightUniforms light_uniforms;
+        GLTools::Shader stage2_dlight_shader;
+        _LightUniforms dlight_uniforms;
 
         // Shaders used to show the final result - post processing goes here
         GLTools::Shader stage3_shader;
@@ -208,6 +221,7 @@ namespace Frender
         // Stage 2 framebuffer and materials
         GLTools::Framebuffer stage2_fbo;
         GLTools::TextureManager stage2_tex;
+        GLTools::TextureManager stage2_texd;
         bool has_stage2;
 
         // Stage 3 framebuffer and materials
@@ -223,6 +237,7 @@ namespace Frender
 
         // Pools of lights
         std::vector<PointLight> point_lights;
+        std::vector<DirectionLight> directional_lights;
 
         // Useful info
         glm::mat4 camera;

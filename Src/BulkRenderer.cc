@@ -56,9 +56,40 @@ void Frender::Renderer::bulkRender()
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     // glCullFace(GL_FRONT); // Only draw backfaces for best effect
     glDisable(GL_CULL_FACE);
+    glDisable(GL_DEPTH_TEST);
     GLERRORCHECK();
 
-    // Enable all nessesairy shaders and meshes
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_ONE, GL_ONE);
+    glBlendEquation(GL_FUNC_ADD);
+
+    // Directional loghts
+    stage2_dlight_shader.enable();
+    stage2_texd.enable();
+
+    // Set important uniforms
+    stage2_dlight_shader.setUniform(dlight_uniforms.width, width);
+    stage2_dlight_shader.setUniform(dlight_uniforms.height, height);
+    stage2_dlight_shader.setUniform(dlight_uniforms.cam_pos, camera * glm::vec4(0, 0, 0, 1));
+
+    plane.enable();
+
+    for (auto i : directional_lights)
+    {
+        // Light pos is actually direction for directinal lights
+        stage2_dlight_shader.setUniform(dlight_uniforms.light_pos, i.direction);
+        GLERRORCHECK();
+        stage2_dlight_shader.setUniform(dlight_uniforms.color, i.color);
+
+        // No need for transformation matrices since we're just drawing a plane
+        glDrawElements(GL_TRIANGLES, plane.num_indices, GL_UNSIGNED_INT, 0);
+    }
+
+    // Use depth testing and depth buffer for lights that don't effect everything
+    // GLTools::transferDepthBuffer(&stage2_fbo, &stage3_fbo, width, height);
+    // glEnable(GL_DEPTH_TEST);
+
+    // Enable all nessesary shaders and meshes
     stage2_light_shader.enable();
     stage2_tex.enable();
     light_sphere.enable();
@@ -86,7 +117,9 @@ void Frender::Renderer::bulkRender()
 
     stage3_fbo.disable();
     glEnable(GL_CULL_FACE);
+    glEnable(GL_DEPTH_TEST);
     glCullFace(GL_BACK);
+    glDisable(GL_BLEND);
     // glCullFace(GL_FRONT);
 
     // Stage 3: Post-processing and HUD elements

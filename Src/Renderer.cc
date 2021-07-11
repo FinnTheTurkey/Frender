@@ -11,6 +11,7 @@
 #include "Frender/Shaders/Stage1Frag.h"
 #include "Frender/Shaders/Stage2Vert.h"
 #include "Frender/Shaders/Stage2Frag.h"
+#include "Frender/Shaders/Stage2FragD.h"
 #include "Frender/Shaders/Stage3Vert.h"
 #include "Frender/Shaders/Stage3Frag.h"
 #include "Frender/Shaders/Sphere.h"
@@ -29,6 +30,13 @@ Frender::Renderer::Renderer(int width, int height)
     light_uniforms.cam_pos = stage2_light_shader.getUniformLocation("cam_pos");
     light_uniforms.light_pos = stage2_light_shader.getUniformLocation("light_pos");
     light_uniforms.radius = stage2_light_shader.getUniformLocation("radius");
+
+    stage2_dlight_shader = GLTools::Shader(Stage3VertSrc, Stage2FragDSrc);
+    dlight_uniforms.width = stage2_dlight_shader.getUniformLocation("width");
+    dlight_uniforms.height = stage2_dlight_shader.getUniformLocation("height");
+    dlight_uniforms.color = stage2_dlight_shader.getUniformLocation("light_color");
+    dlight_uniforms.cam_pos = stage2_dlight_shader.getUniformLocation("cam_pos");
+    dlight_uniforms.light_pos = stage2_dlight_shader.getUniformLocation("light_direction");
 
     setRenderResolution(width, height);
     GLERRORCHECK();
@@ -127,6 +135,14 @@ void Frender::Renderer::setRenderResolution(int new_width, int new_height)
     stage2_tex.set("NormalMetal", stage2_fbo.getTexture()[1]);
     stage2_tex.set("position", stage2_fbo.getTexture()[2]);
     GLERRORCHECK();
+
+    stage2_texd = GLTools::TextureManager(stage2_dlight_shader);
+    GLERRORCHECK();
+    stage2_texd.set("ColorRoughness", stage2_fbo.getTexture()[0]);
+    stage2_texd.set("NormalMetal", stage2_fbo.getTexture()[1]);
+    stage2_texd.set("position", stage2_fbo.getTexture()[2]);
+    GLERRORCHECK();
+
     has_stage3 = true;
 }
 
@@ -220,6 +236,12 @@ Frender::RenderObjectRef Frender::Renderer::createRenderObject(MeshRef mesh, uin
 uint32_t Frender::Renderer::createPointLight(glm::vec3 position, glm::vec3 color, float radius)
 {
     point_lights.push_back({color, position, radius});
+    return point_lights.size()-1;
+}
+
+uint32_t Frender::Renderer::createDirectionalLight(glm::vec3 color, glm::vec3 direction)
+{
+    directional_lights.push_back({color, direction});
     return point_lights.size()-1;
 }
 
