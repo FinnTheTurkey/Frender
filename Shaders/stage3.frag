@@ -9,7 +9,11 @@ void main()
 {
     vec3 color = texture(frame, tex_coords).xyz;
 
+    // Tone mapping
+    vec3 mapped = vec3(1.0) - exp(-color * 1.0); // 1.0 is exposure
     // Gamma correction
-    FragColor = vec4(pow(color/(color + 1.0), vec3(1.0/2.2)), 1);
+    mapped = pow(mapped, vec3(1.0 / 2.2)); // 2.2 is gamma
+
+    FragColor = vec4(mapped, 1);
     
 }

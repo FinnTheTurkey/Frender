@@ -124,7 +124,7 @@ void Frender::Renderer::setRenderResolution(int new_width, int new_height)
     }
     
     stage2_fbo = GLTools::Framebuffer(width, height, {
-        GLTools::TextureTypes::RGBA8,
+        GLTools::TextureTypes::RGBA16,
         GLTools::TextureTypes::RGBA16,
         GLTools::TextureTypes::RGBA16
     });

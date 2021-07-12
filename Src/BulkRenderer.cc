@@ -47,21 +47,25 @@ void Frender::Renderer::bulkRender()
 
     // Stage 2: Lighting pass and forward rendering
     // Copy over depth buffer and enable stage3_fbo
-    // GLTools::transferDepthBuffer(&stage2_fbo, &stage3_fbo, width, height);
-    stage3_fbo.enable();
+    GLTools::transferDepthBuffer(&stage2_fbo, &stage3_fbo, width, height);
+    // stage3_fbo.enable();
 
     // Setup screen
     // glClearColor(0.2f, 0.3f, 0.3f, 1.0f);
     glClearColor(0, 0, 0, 1.0f);
-    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-    // glCullFace(GL_FRONT); // Only draw backfaces for best effect
-    glDisable(GL_CULL_FACE);
-    glDisable(GL_DEPTH_TEST);
+    glClear(GL_COLOR_BUFFER_BIT); // | GL_DEPTH_BUFFER_BIT);
+    glDepthMask(GL_FALSE);
+    
+    // glDisable(GL_CULL_FACE);
+    // glEnable(GL_C)
+    // glDisable(GL_DEPTH_TEST);
     GLERRORCHECK();
 
     glEnable(GL_BLEND);
     glBlendFunc(GL_ONE, GL_ONE);
     glBlendEquation(GL_FUNC_ADD);
+    // glDisable(GL_DEPTH_TEST);
+    glDepthFunc(GL_ALWAYS);
 
     // Directional loghts
     stage2_dlight_shader.enable();
@@ -88,6 +92,8 @@ void Frender::Renderer::bulkRender()
     // Use depth testing and depth buffer for lights that don't effect everything
     // GLTools::transferDepthBuffer(&stage2_fbo, &stage3_fbo, width, height);
     // glEnable(GL_DEPTH_TEST);
+    glDepthFunc(GL_GEQUAL);
+    glCullFace(GL_FRONT); // Only draw backfaces for best effect
 
     // Enable all nessesary shaders and meshes
     stage2_light_shader.enable();
@@ -116,10 +122,12 @@ void Frender::Renderer::bulkRender()
     }
 
     stage3_fbo.disable();
-    glEnable(GL_CULL_FACE);
-    glEnable(GL_DEPTH_TEST);
+    // glEnable(GL_CULL_FACE);
+    // glEnable(GL_DEPTH_TEST);
     glCullFace(GL_BACK);
     glDisable(GL_BLEND);
+    glDepthMask(GL_TRUE);
+    glDepthFunc(GL_LESS);
     // glCullFace(GL_FRONT);
 
     // Stage 3: Post-processing and HUD elements
