@@ -412,6 +412,11 @@ void Frender::GLTools::TextureManager::set(const std::string &name, Texture tex)
     size ++;
 }
 
+void Frender::GLTools::TextureManager::set(int index, Texture tex)
+{
+    data[index].tex = tex;
+}
+
 void Frender::GLTools::TextureManager::enable()
 {
     // TODO: Don't re-bind textures

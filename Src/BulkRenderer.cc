@@ -130,14 +130,84 @@ void Frender::Renderer::bulkRender()
     glDepthFunc(GL_LESS);
     // glCullFace(GL_FRONT);
 
-    // Stage 3: Post-processing and HUD elements
+    // Stage 2.99: Bloom
     plane.enable();
     GLERRORCHECK();
+
+    if (bloom_res_scale != 0)
+    {
+        processBloom();
+    }
+
+    // Stage 3: Post-processing and HUD elements
     stage3_shader.enable();
     GLERRORCHECK();
     stage3_tex.enable();
     GLERRORCHECK();
+    
+    // Set bloom parameters
+    stage3_shader.setUniform(bloom_exposure_loc, bloom_blur_amount == 0 ? 0 : bloom_exposure);
 
     glDrawElements(GL_TRIANGLES, plane.num_indices, GL_UNSIGNED_INT, 0);
     GLERRORCHECK();
+}
+
+void Frender::Renderer::processBloom()
+{
+    // Plane should already be enabled
+    bloom_shader.enable();
+    GLERRORCHECK();
+
+    // Put the initial brightness into the bloom loop
+    bool first = true;
+    bloom_tex1.set(0, stage3_fbo.getTexture()[1]);
+
+    // glDisable(GL_CULL_FACE);
+    glDisable(GL_DEPTH_TEST);
+
+    // Don't do this
+    bloom_fbo1.enable();
+    bloom_shader.enable();
+    glClearColor(1, 0, 0, 1);
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+    bloom_fbo2.enable();
+    bloom_shader.enable();
+    glClearColor(1, 0, 0, 1);
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+    bool horizontal = true;
+    for (int i = 0; i < bloom_blur_amount; i++)
+    {
+        // Do horizontal pass
+        bloom_tex1.enable();
+        bloom_fbo1.enable();
+        // glClearColor(1, 0, 0, 1);
+        // glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+        bloom_shader.setUniform(bloom_horizontal_loc, true);
+
+        glDrawElements(GL_TRIANGLES, plane.num_indices, GL_UNSIGNED_INT, 0);
+        GLERRORCHECK();
+
+        if (first)
+        {
+            first = false;
+            bloom_tex1.set(0, bloom_fbo2.getTexture()[0]);
+        }
+
+        // Do vertical pass
+        bloom_tex2.enable();
+        bloom_fbo2.enable();
+        // glClearColor(1, 0, 0, 1);
+        // glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+        bloom_shader.setUniform(bloom_horizontal_loc, false);
+
+        glDrawElements(GL_TRIANGLES, plane.num_indices, GL_UNSIGNED_INT, 0);
+        GLERRORCHECK();
+    }
+
+    // glEnable(GL_CULL_FACE);
+    glEnable(GL_DEPTH_TEST);
+
+    bloom_fbo2.disable();
 }

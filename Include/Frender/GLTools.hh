@@ -167,6 +167,7 @@ namespace Frender::GLTools
         TextureManager(Shader shader) : shader(shader), size(0) {}
 
         void set(const std::string& name, Texture tex);
+        void set(int index, Texture tex);
 
         void enable();
     

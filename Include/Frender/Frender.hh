@@ -189,6 +189,14 @@ namespace Frender
         float near_distance = 0.01;
         float far_distance = 100;
 
+        /// How to scale the resolutions of the bloom passes
+        /// Set to 0 for no bloom
+        float bloom_res_scale = 0;
+        /// How many passes of blur should be applied to the bloom
+        float bloom_blur_amount = 2;
+        /// How bright the bloom is
+        float bloom_exposure = 0.5;
+
         // Stats
         uint64_t frame_count;
         double frame_rate;
@@ -211,6 +219,9 @@ namespace Frender
 
         // Shaders used to show the final result - post processing goes here
         GLTools::Shader stage3_shader;
+        uint32_t bloom_exposure_loc;
+        GLTools::Shader bloom_shader;
+        uint32_t bloom_horizontal_loc;
 
         // The plane which the final image is rendered on
         GLTools::MeshBuffer plane;
@@ -228,6 +239,12 @@ namespace Frender
         GLTools::Framebuffer stage3_fbo;
         GLTools::TextureManager stage3_tex;
         bool has_stage3;
+
+        // FBOs and textures for bloom
+        GLTools::Framebuffer bloom_fbo1;
+        GLTools::TextureManager bloom_tex1;
+        GLTools::Framebuffer bloom_fbo2;
+        GLTools::TextureManager bloom_tex2;
 
         // Pools
         std::vector<Material> materials;
@@ -254,6 +271,7 @@ namespace Frender
 
         // Functions
         void bulkRender();
+        void processBloom();
     };
 }
 

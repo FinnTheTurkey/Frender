@@ -14,12 +14,17 @@
 #include "Frender/Shaders/Stage2FragD.h"
 #include "Frender/Shaders/Stage3Vert.h"
 #include "Frender/Shaders/Stage3Frag.h"
+#include "Frender/Shaders/BloomFrag.h"
 #include "Frender/Shaders/Sphere.h"
 
 Frender::Renderer::Renderer(int width, int height)
 {
     // Create stage3 shaders
     stage3_shader = GLTools::Shader(Stage3VertSrc, Stage3FragSrc);
+    bloom_exposure_loc = stage3_shader.getUniformLocation("bloom_exposure");
+
+    bloom_shader = GLTools::Shader(Stage3VertSrc, BloomFragSrc);
+    bloom_horizontal_loc = bloom_shader.getUniformLocation("horizontal");
     GLERRORCHECK();
 
     // Create stage2 shaders
@@ -105,16 +110,46 @@ void Frender::Renderer::setRenderResolution(int new_width, int new_height)
     if (has_stage3)
     {
         stage3_fbo.destroy();
+
+        if (bloom_res_scale != 0)
+        {
+            bloom_fbo1.destroy();
+            bloom_fbo2.destroy();
+        }
         GLERRORCHECK();
     }
 
-    stage3_fbo = GLTools::Framebuffer(width, height, {GLTools::TextureTypes::RGBA8});
+    stage3_fbo = GLTools::Framebuffer(width, height, {
+        GLTools::TextureTypes::RGBA16,
+        GLTools::TextureTypes::RGBA16
+    });
     GLERRORCHECK();
     stage3_tex = GLTools::TextureManager(stage3_shader);
     GLERRORCHECK();
     stage3_tex.set("frame", stage3_fbo.getTexture()[0]);
+    stage3_tex.set("brightness", stage3_fbo.getTexture()[1]);
     GLERRORCHECK();
     has_stage3 = true;
+
+    // Create bloom FBOs
+    if (bloom_res_scale != 0)
+    {
+        bloom_fbo1 = GLTools::Framebuffer(bloom_res_scale * width, bloom_res_scale * height, {
+            GLTools::TextureTypes::RGBA16
+        });
+
+        bloom_fbo2 = GLTools::Framebuffer(bloom_res_scale * width, bloom_res_scale * height, {
+            GLTools::TextureTypes::RGBA16
+        });
+
+        bloom_tex1 = GLTools::TextureManager(bloom_shader);
+        bloom_tex1.set("frame", bloom_fbo2.getTexture()[0]);
+
+        bloom_tex2 = GLTools::TextureManager(bloom_shader);
+        bloom_tex2.set("frame", bloom_fbo1.getTexture()[0]);
+
+        stage3_tex.set("bloom_blur", bloom_fbo2.getTexture()[0]);
+    }
 
     // Create stage2 fbo and textures
     if (has_stage2)
@@ -124,7 +159,7 @@ void Frender::Renderer::setRenderResolution(int new_width, int new_height)
     }
     
     stage2_fbo = GLTools::Framebuffer(width, height, {
-        GLTools::TextureTypes::RGBA16,
+        GLTools::TextureTypes::RGBA8,
         GLTools::TextureTypes::RGBA16,
         GLTools::TextureTypes::RGBA16
     });

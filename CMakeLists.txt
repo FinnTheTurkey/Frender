@@ -39,6 +39,7 @@ embed_resource("Shaders/stage2directionallight.frag" "Include/Frender/Shaders/St
 
 embed_resource("Shaders/stage3.vert" "Include/Frender/Shaders/Stage3Vert.h" "Stage3VertSrc")
 embed_resource("Shaders/stage3.frag" "Include/Frender/Shaders/Stage3Frag.h" "Stage3FragSrc")
+embed_resource("Shaders/stage3bloom.frag" "Include/Frender/Shaders/BloomFrag.h" "BloomFragSrc")
 
 add_library(Frender 
     Src/Window.cc
