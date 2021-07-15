@@ -258,6 +258,7 @@ Frender::RenderObjectRef Frender::Renderer::createRenderObject(MeshRef mesh, uin
     RenderObject r;
     r.transform = transform;
     r.mesh = meshes[mesh];
+    r.mesh_index = mesh;
     r.mat = {mat, m->uniforms.getRef(), m->shader};
 
     render_objects.push_back(r);
@@ -288,4 +289,10 @@ glm::mat4 Frender::RenderObjectRef::getTransform()
 void Frender::RenderObjectRef::setTransform(glm::mat4 t)
 {
     renderer->_getRenderObject(index)->transform = t;
+}
+
+Frender::RenderObjectRef Frender::RenderObjectRef::duplicate()
+{
+    auto ob = renderer->_getRenderObject(index);
+    return renderer->createRenderObject(ob->mesh_index, ob->mat.mat_ref, ob->transform);
 }

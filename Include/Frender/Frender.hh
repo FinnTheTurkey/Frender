@@ -89,6 +89,7 @@ namespace Frender
         glm::mat4 transform;
         MaterialRef mat;
         GLTools::MeshBuffer mesh;
+        uint32_t mesh_index;
     };
 
     class RenderObjectRef
@@ -99,6 +100,8 @@ namespace Frender
         
         glm::mat4 getTransform();
         void setTransform(glm::mat4 t);
+
+        RenderObjectRef duplicate();
 
     private:
         uint32_t* index;
@@ -193,9 +196,9 @@ namespace Frender
         /// Set to 0 for no bloom
         float bloom_res_scale = 0;
         /// How many passes of blur should be applied to the bloom
-        float bloom_blur_amount = 2;
+        float bloom_blur_amount = 5;
         /// How bright the bloom is
-        float bloom_exposure = 0.5;
+        float bloom_exposure = 1;
 
         // Stats
         uint64_t frame_count;

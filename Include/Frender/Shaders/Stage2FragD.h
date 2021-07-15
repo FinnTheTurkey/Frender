@@ -1,6 +1,7 @@
 // Auto generated file.
 static const char Stage2FragDSrc[] = "#version 330 core\n\
-out vec4 FragColor;\n\
+layout (location = 0) out vec4 FragColor;\n\
+layout (location = 1) out vec4 BrightColor;\n\
 \n\
 in vec2 tex_coords;\n\
 \n\
@@ -147,4 +148,12 @@ void main()\n\
 \n\
     FragColor = vec4(end_result, 1);\n\
     // FragColor = vec4(0, 1, 0, 1);\n\
+\n\
+    // If it's higher than a certain point, it goes into\n\
+    // The bloom buffer\n\
+    float brightness = dot(FragColor.rgb, vec3(0.2126, 0.7152, 0.0722));\n\
+    if(brightness > 1.0)\n\
+        BrightColor = vec4(FragColor.rgb, 1.0);\n\
+    else\n\
+        BrightColor = vec4(0.0, 0.0, 0.0, 1.0);\n\
 }";
