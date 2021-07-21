@@ -10,11 +10,17 @@ uniform sampler2D position;
 
 uniform int width;
 uniform int height;
-uniform vec3 light_color;
-uniform float radius;
-
 uniform vec3 cam_pos;
-uniform vec3 light_pos;
+
+// Old method
+// uniform vec3 light_color;
+// uniform vec3 light_pos;
+// uniform float radius;
+
+// New method
+in vec3 light_color;
+in vec3 light_pos;
+in float radius;
 
 const float PI = 3.14159265359;
 
@@ -144,6 +150,7 @@ void main()
     vec3 end_result = reflectanceEquation(normal, V, F0, color.xyz, light_pos, pos, light_color, roughness, metal);
 
     FragColor = vec4(end_result, 1);
+    // FragColor = vec4(0, 1, 0, 1);
 
     // If it's higher than a certain point, it goes into
     // The bloom buffer

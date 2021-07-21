@@ -62,6 +62,38 @@ Frender::Renderer::Renderer(int width, int height)
 
     // Create light sphere
     light_sphere = GLTools::MeshBuffer(sphere_vertices, sphere_indices);
+
+    // New method for making light spheres
+    // TODO: Do this in a better way
+    // That doesn't leak memory
+    GLTools::Buffer<Vertex>* vertex_buffer = new GLTools::Buffer<Vertex>(GLTools::Element, {
+        {sizeof(glm::vec3), 3},
+        {sizeof(glm::vec3), 3},
+        {sizeof(glm::vec2), 2},
+        {sizeof(glm::vec3), 3},
+        {sizeof(glm::vec3), 3}
+    }, sphere_vertices);
+
+    point_light_buffer = GLTools::Buffer<PointLight>(GLTools::Array, {
+        {sizeof(glm::vec3), 3},
+        {sizeof(glm::vec3), 3},
+        {sizeof(float), 1},
+
+        // Matrix has to be 4 values
+        {sizeof(glm::vec4), 4},
+        {sizeof(glm::vec4), 4},
+        {sizeof(glm::vec4), 4},
+        {sizeof(glm::vec4), 4}
+    }, {});
+
+    // point_light_buffer.pushBack({glm::vec3(0, 0, 0), glm::vec3(0, 0, 0), 0});
+
+    light_sphere_vao = GLTools::VertexArray();
+    light_sphere_vao.addBuffer((GLTools::IBuffer*)vertex_buffer);
+    light_sphere_vao.addBuffer((GLTools::IBuffer*)&point_light_buffer);
+    light_sphere_vao.bind();
+
+    light_sphere_vao.addIndices(sphere_indices);
 }
 
 void Frender::Renderer::render(float delta)
@@ -271,7 +303,13 @@ Frender::RenderObjectRef Frender::Renderer::createRenderObject(MeshRef mesh, uin
 
 uint32_t Frender::Renderer::createPointLight(glm::vec3 position, glm::vec3 color, float radius)
 {
-    point_lights.push_back({color, position, radius});
+    auto m = glm::scale(glm::translate(glm::mat4(), position), glm::vec3(radius));
+
+    point_lights.push_back({color, position, radius, m});
+
+    // New method: Add to buffer
+    point_light_buffer.pushBack({color, position, radius, m});
+
     return point_lights.size()-1;
 }
 

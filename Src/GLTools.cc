@@ -87,6 +87,79 @@ void Frender::GLTools::MeshBuffer::enable()
     glBindVertexArray(vao);
 }
 
+// ====================================================================
+// Vertex Array
+// ====================================================================
+void Frender::GLTools::VertexArray::bind()
+{
+    if (index_count == 0)
+    {
+        glGenVertexArrays(1, &vao);
+    }
+
+    glBindVertexArray(vao);
+
+    uint32_t grand_total_size = 0;
+    for (auto i : buffers)
+    {
+        grand_total_size += i->_getBufferInfo().total_size;
+    }
+
+    uint32_t buffer_count = 0;
+    for (auto i : buffers)
+    {
+        glBindBuffer(GL_ARRAY_BUFFER, i->_getBufferInfo().handle);
+        uint32_t cumulative_size = 0;
+
+        for (auto s : i->_getBufferInfo().sizes)
+        {
+            glVertexAttribPointer(buffer_count, s.count, GL_FLOAT, GL_FALSE, i->_getBufferInfo().total_size, (void*)(1l + (cumulative_size - 1)));
+            glEnableVertexAttribArray(buffer_count);
+
+            if (i->_getBufferInfo().type == Array)
+            {
+                glVertexAttribDivisor(buffer_count, 1);
+            }
+
+            buffer_count ++;
+            cumulative_size += s.size;
+        }
+
+        glBindBuffer(GL_ARRAY_BUFFER, 0);
+    }
+}
+
+void Frender::GLTools::VertexArray::addIndices(const std::vector<uint32_t>& indices)
+{
+    glBindVertexArray(vao);
+    
+    glGenBuffers(1, &ebo);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ebo);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, indices.size() * sizeof(uint32_t), &indices[0], GL_STATIC_DRAW);
+    index_count = indices.size();
+}
+
+void Frender::GLTools::VertexArray::draw(int instances)
+{
+    // enable();
+    glDrawElementsInstanced(GL_TRIANGLES, index_count, GL_UNSIGNED_INT, 0, instances);
+}
+
+void Frender::GLTools::VertexArray::enable()
+{
+    glBindVertexArray(vao);
+}
+
+void Frender::GLTools::VertexArray::destroy()
+{
+    for (auto i : buffers)
+    {
+        i->removeDependantVao(this);
+    }
+
+    glDeleteVertexArrays(1, &vao);
+    glDeleteBuffers(1, &ebo);
+}
 
 // ====================================================================
 // Shader
@@ -176,7 +249,6 @@ void Frender::GLTools::Shader::destroy()
 {
     glDeleteProgram(program);
 }
-
 
 void Frender::GLTools::Shader::enable()
 {

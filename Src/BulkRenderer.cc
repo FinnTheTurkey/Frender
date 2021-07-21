@@ -20,6 +20,8 @@ void Frender::Renderer::bulkRender()
     glCullFace(GL_BACK);
     GLERRORCHECK();
 
+    auto mv = projection * inv_camera;
+
     stage1_bulk_shader.enable();
     for (auto i : render_objects)
     {
@@ -31,7 +33,7 @@ void Frender::Renderer::bulkRender()
         GLERRORCHECK();
         
         // Set important uniforms
-        i.mat.shader.setUniforms(projection * inv_camera * i.transform, i.transform);
+        i.mat.shader.setUniforms(mv * i.transform, i.transform);
         GLERRORCHECK();
 
         // Enable textures
@@ -98,7 +100,7 @@ void Frender::Renderer::bulkRender()
     // Enable all nessesary shaders and meshes
     stage2_light_shader.enable();
     stage2_tex.enable();
-    light_sphere.enable();
+    // light_sphere.enable();
 
     // Set important uniforms
     stage2_light_shader.setUniform(light_uniforms.width, width);
@@ -106,20 +108,46 @@ void Frender::Renderer::bulkRender()
     stage2_light_shader.setUniform(light_uniforms.cam_pos, camera * glm::vec4(0, 0, 0, 1));
     
     // Run lighting pass
-    for (auto i : point_lights)
+    // for (auto i : point_lights)
+    // {
+    //     // Set important uniforms
+    //     stage2_light_shader.setUniform(light_uniforms.color, i.color);
+    //     stage2_light_shader.setUniform(light_uniforms.light_pos, i.position);
+    //     stage2_light_shader.setUniform(light_uniforms.radius, i.radius);
+
+    //     // Create transformation matrix
+    //     auto m = glm::scale(glm::translate(glm::mat4(), i.position), glm::vec3(i.radius));
+    //     stage2_light_shader.setUniforms(projection * inv_camera * m, m);
+
+    //     // Render
+    //     glDrawElements(GL_TRIANGLES, light_sphere.num_indices, GL_UNSIGNED_INT, 0);
+    // }
+
+    // New method: Draw instanced
+    // Update all the uniforms
+    for (int i = 0; i < point_light_buffer.size(); i++)
     {
-        // Set important uniforms
-        stage2_light_shader.setUniform(light_uniforms.color, i.color);
-        stage2_light_shader.setUniform(light_uniforms.light_pos, i.position);
-        stage2_light_shader.setUniform(light_uniforms.radius, i.radius);
-
-        // Create transformation matrix
-        auto m = glm::scale(glm::translate(glm::mat4(), i.position), glm::vec3(i.radius));
-        stage2_light_shader.setUniforms(projection * inv_camera * m, m);
-
-        // Render
-        glDrawElements(GL_TRIANGLES, light_sphere.num_indices, GL_UNSIGNED_INT, 0);
+        auto v = point_light_buffer.get(i);
+        v.transform = mv * glm::scale(glm::translate(glm::mat4(), v.position), glm::vec3(v.radius));
+        point_light_buffer.set(i, v);
     }
+
+    // Upload changes to gpu
+    point_light_buffer.apply();
+    GLERRORCHECK();
+
+    light_sphere_vao.enable();
+    GLERRORCHECK();
+    light_sphere_vao.draw(point_light_buffer.size());
+    GLERRORCHECK();
+
+    // Debug
+    // auto bi = point_light_buffer._getBufferInfo();
+    // glBindBuffer(GL_ARRAY_BUFFER, bi.handle);
+    // int output;
+    // glGetBufferParameteriv(GL_ARRAY_BUFFER, GL_BUFFER_SIZE, &output);
+
+    // std::cout << "Buffer size: " << output << "\n";
 
     stage3_fbo.disable();
     // glEnable(GL_CULL_FACE);

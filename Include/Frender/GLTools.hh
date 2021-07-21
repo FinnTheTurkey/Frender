@@ -2,10 +2,15 @@
 #define FRENDER_GLTOOLS_HH
 
 #include <glm/glm.hpp>
+#include <iostream>
 #include <vector>
 #include <string>
 #include <variant>
 #include <array>
+
+#include <algorithm>
+
+#include <glad/glad.h>
 
 #define GLERRORCHECK() switch (glGetError()) \
     { \
@@ -53,6 +58,212 @@ namespace Frender::GLTools
         uint32_t vbo;
         uint32_t ebo;
     };
+
+    enum BufferType
+    {
+        Element, Array
+    };
+
+    struct _VertexAttribSize
+    {
+        size_t size;
+        uint32_t count;
+    };
+
+    struct _BufferInfo
+    {
+        uint32_t handle;
+        BufferType type;
+        std::vector<_VertexAttribSize> sizes;
+        size_t total_size;
+    };
+
+    class VertexArray;
+
+    class IBuffer
+    {
+    public:
+        virtual void addDependantVao(VertexArray* vao) {};
+        virtual void removeDependantVao(VertexArray* vao) {};
+
+        virtual _BufferInfo _getBufferInfo() const {return {0, Array, {}, 0};};
+    };
+
+    template <typename T>
+    class Buffer;
+
+    class VertexArray
+    {
+    public:
+        VertexArray() {};
+
+        void addBuffer(IBuffer* buff)
+        {
+            buffers.push_back(buff);
+            buff->addDependantVao(this);
+        }
+
+        void addIndices(const std::vector<uint32_t>& indices);
+
+        void bind();
+
+        void enable();
+
+        void draw(int instances);
+
+        void destroy();
+
+    private:
+        uint32_t vao;
+        uint32_t ebo;
+        size_t index_count = 0;
+        std::vector<IBuffer*> buffers;
+    };
+
+    template <typename T>
+    class Buffer : IBuffer
+    {
+    public:
+        Buffer() {};
+        Buffer(BufferType type, const std::vector<_VertexAttribSize>& sizes, const std::vector<T> initial_data)
+        :type(type), sizes(sizes)
+        {
+            // Calculate total size
+            total_size = 0;
+            for (auto i : sizes)
+            {
+                total_size += i.size;
+            }
+
+            // Create buffer
+            glGenBuffers(1, &handle);
+            glBindBuffer(GL_ARRAY_BUFFER, handle);
+
+            if (initial_data.size() > 0)
+            {
+                glBufferData(GL_ARRAY_BUFFER, total_size * initial_data.size(), &initial_data[0], type == Element ? GL_STATIC_DRAW : GL_DYNAMIC_DRAW);
+            }
+            else
+            {
+                glBufferData(GL_ARRAY_BUFFER, total_size, NULL, type == Element ? GL_STATIC_DRAW : GL_DYNAMIC_DRAW);
+            }
+
+            if (type == Array)
+            {
+                data = initial_data;
+            }
+        }
+
+        void destroy()
+        {
+            glDeleteBuffers(1, &handle);
+        }
+
+        T get(int index) const
+        {
+            return data[index];
+        }
+
+        void set(int index, T item)
+        {
+            data[index] = item;
+
+            // Stage the change
+            staged_changes.push_back(index);
+        }
+
+        void pushBack(const T& item)
+        {
+            data.push_back(item);
+
+            reallocate = true;
+        }
+
+        /**
+        Apply's all changes to the buffer and sends them to the gpu
+        */
+        void apply()
+        {
+
+            if (reallocate)
+            {
+                // We have to completely re-allocate the VRAM
+                glDeleteBuffers(1, &handle);
+                glGenBuffers(1, &handle);
+
+                glBindBuffer(GL_ARRAY_BUFFER, handle);
+                glBufferData(GL_ARRAY_BUFFER, total_size * data.size(), &data[0], type == Element ? GL_STATIC_DRAW : GL_DYNAMIC_DRAW);
+
+                for (auto i : vaos)
+                {
+                    // Update the VAO to match the new buffer
+                    i->bind();
+                }
+
+                reallocate = false;
+            }
+            else
+            {
+                glBindBuffer(GL_ARRAY_BUFFER, handle);
+
+                if (staged_changes.size() > data.size() / 2)
+                {
+                    // At this point it's probably faster to just re-uploat it all
+                    glBufferSubData(GL_ARRAY_BUFFER, 0, total_size * data.size(), &data[0]);
+                }
+                else
+                {
+                    for (auto i : staged_changes)
+                    {
+                        // Upload changes to GPU
+                        glBufferSubData(GL_ARRAY_BUFFER, total_size * i, total_size, &data[i]);
+                    }
+                }
+            }
+
+            staged_changes = {};
+        }
+
+        size_t size() const
+        {
+            return data.size();
+        }
+
+        // TODO: Deletion
+
+        _BufferInfo _getBufferInfo() const override
+        {
+            return {handle, type, sizes, total_size};
+        }
+
+        void addDependantVao(VertexArray* vao) override;
+        void removeDependantVao(VertexArray* vao) override;
+
+    private:
+        uint32_t handle;
+        BufferType type;
+        std::vector<_VertexAttribSize> sizes;
+        std::vector<T> data;
+        size_t total_size;
+
+        std::vector<uint32_t> staged_changes;
+        bool reallocate;
+
+        std::vector<VertexArray*> vaos;
+    };
+
+    template <typename T>
+    void Buffer<T>::addDependantVao(VertexArray* vao)
+    {
+        vaos.push_back(vao);
+    }
+
+    template <typename T>
+    void Buffer<T>::removeDependantVao(VertexArray* vao)
+    {
+        // Please don't delete a file
+        vaos.erase(std::remove(vaos.begin(), vaos.end(), vao), vaos.end());
+    }
 
     class Shader
     {

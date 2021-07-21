@@ -113,6 +113,7 @@ namespace Frender
         glm::vec3 color;
         glm::vec3 position;
         float radius;
+        glm::mat4 transform;
     };
 
     struct DirectionLight
@@ -194,7 +195,7 @@ namespace Frender
 
         /// How to scale the resolutions of the bloom passes
         /// Set to 0 for no bloom
-        float bloom_res_scale = 0;
+        float bloom_res_scale = 1;
         /// How many passes of blur should be applied to the bloom
         float bloom_blur_amount = 5;
         /// How bright the bloom is
@@ -231,6 +232,8 @@ namespace Frender
 
         // Mesh which represents a light
         GLTools::MeshBuffer light_sphere;
+        GLTools::VertexArray light_sphere_vao;
+        GLTools::Buffer<PointLight> point_light_buffer;
 
         // Stage 2 framebuffer and materials
         GLTools::Framebuffer stage2_fbo;
