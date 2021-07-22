@@ -61,7 +61,7 @@ namespace Frender::GLTools
 
     enum BufferType
     {
-        Element, Array
+        Static, Dynamic, Element
     };
 
     struct _VertexAttribSize
@@ -86,7 +86,7 @@ namespace Frender::GLTools
         virtual void addDependantVao(VertexArray* vao) {};
         virtual void removeDependantVao(VertexArray* vao) {};
 
-        virtual _BufferInfo _getBufferInfo() const {return {0, Array, {}, 0};};
+        virtual _BufferInfo _getBufferInfo() const {return {0, Dynamic, {}, 0};};
     };
 
     template <typename T>
@@ -103,7 +103,7 @@ namespace Frender::GLTools
             buff->addDependantVao(this);
         }
 
-        void addIndices(const std::vector<uint32_t>& indices);
+        void addIndices(Buffer<uint32_t>* buff, size_t size);
 
         void bind();
 
@@ -115,7 +115,7 @@ namespace Frender::GLTools
 
     private:
         uint32_t vao;
-        uint32_t ebo;
+        Buffer<uint32_t>* ebo;
         size_t index_count = 0;
         std::vector<IBuffer*> buffers;
     };
@@ -137,18 +137,18 @@ namespace Frender::GLTools
 
             // Create buffer
             glGenBuffers(1, &handle);
-            glBindBuffer(GL_ARRAY_BUFFER, handle);
+            glBindBuffer(type == Element ? GL_ELEMENT_ARRAY_BUFFER : GL_ARRAY_BUFFER, handle);
 
             if (initial_data.size() > 0)
             {
-                glBufferData(GL_ARRAY_BUFFER, total_size * initial_data.size(), &initial_data[0], type == Element ? GL_STATIC_DRAW : GL_DYNAMIC_DRAW);
+                glBufferData(type == Element ? GL_ELEMENT_ARRAY_BUFFER : GL_ARRAY_BUFFER, total_size * initial_data.size(), &initial_data[0], type == Dynamic ? GL_DYNAMIC_DRAW : GL_STATIC_DRAW);
             }
             else
             {
-                glBufferData(GL_ARRAY_BUFFER, total_size, NULL, type == Element ? GL_STATIC_DRAW : GL_DYNAMIC_DRAW);
+                glBufferData(type == Element ? GL_ELEMENT_ARRAY_BUFFER : GL_ARRAY_BUFFER, total_size, NULL, type == Dynamic ? GL_DYNAMIC_DRAW : GL_STATIC_DRAW);
             }
 
-            if (type == Array)
+            if (type == Dynamic)
             {
                 data = initial_data;
             }
@@ -191,8 +191,8 @@ namespace Frender::GLTools
                 glDeleteBuffers(1, &handle);
                 glGenBuffers(1, &handle);
 
-                glBindBuffer(GL_ARRAY_BUFFER, handle);
-                glBufferData(GL_ARRAY_BUFFER, total_size * data.size(), &data[0], type == Element ? GL_STATIC_DRAW : GL_DYNAMIC_DRAW);
+                glBindBuffer(type == Element ? GL_ELEMENT_ARRAY_BUFFER : GL_ARRAY_BUFFER, handle);
+                glBufferData(type == Element ? GL_ELEMENT_ARRAY_BUFFER : GL_ARRAY_BUFFER, total_size * data.size(), &data[0], type == Dynamic ? GL_DYNAMIC_DRAW : GL_STATIC_DRAW);
 
                 for (auto i : vaos)
                 {
@@ -204,19 +204,19 @@ namespace Frender::GLTools
             }
             else
             {
-                glBindBuffer(GL_ARRAY_BUFFER, handle);
+                glBindBuffer(type == Element ? GL_ELEMENT_ARRAY_BUFFER : GL_ARRAY_BUFFER, handle);
 
                 if (staged_changes.size() > data.size() / 2)
                 {
                     // At this point it's probably faster to just re-uploat it all
-                    glBufferSubData(GL_ARRAY_BUFFER, 0, total_size * data.size(), &data[0]);
+                    glBufferSubData(type == Element ? GL_ELEMENT_ARRAY_BUFFER : GL_ARRAY_BUFFER, 0, total_size * data.size(), &data[0]);
                 }
                 else
                 {
                     for (auto i : staged_changes)
                     {
                         // Upload changes to GPU
-                        glBufferSubData(GL_ARRAY_BUFFER, total_size * i, total_size, &data[i]);
+                        glBufferSubData(type == Element ? GL_ELEMENT_ARRAY_BUFFER : GL_ARRAY_BUFFER, total_size * i, total_size, &data[i]);
                     }
                 }
             }

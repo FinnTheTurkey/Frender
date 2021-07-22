@@ -195,7 +195,7 @@ namespace Frender
 
         /// How to scale the resolutions of the bloom passes
         /// Set to 0 for no bloom
-        float bloom_res_scale = 1;
+        float bloom_res_scale = 0;
         /// How many passes of blur should be applied to the bloom
         float bloom_blur_amount = 5;
         /// How bright the bloom is

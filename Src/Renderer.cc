@@ -66,7 +66,7 @@ Frender::Renderer::Renderer(int width, int height)
     // New method for making light spheres
     // TODO: Do this in a better way
     // That doesn't leak memory
-    GLTools::Buffer<Vertex>* vertex_buffer = new GLTools::Buffer<Vertex>(GLTools::Element, {
+    GLTools::Buffer<Vertex>* vertex_buffer = new GLTools::Buffer<Vertex>(GLTools::Static, {
         {sizeof(glm::vec3), 3},
         {sizeof(glm::vec3), 3},
         {sizeof(glm::vec2), 2},
@@ -74,7 +74,7 @@ Frender::Renderer::Renderer(int width, int height)
         {sizeof(glm::vec3), 3}
     }, sphere_vertices);
 
-    point_light_buffer = GLTools::Buffer<PointLight>(GLTools::Array, {
+    point_light_buffer = GLTools::Buffer<PointLight>(GLTools::Dynamic, {
         {sizeof(glm::vec3), 3},
         {sizeof(glm::vec3), 3},
         {sizeof(float), 1},
@@ -93,7 +93,10 @@ Frender::Renderer::Renderer(int width, int height)
     light_sphere_vao.addBuffer((GLTools::IBuffer*)&point_light_buffer);
     light_sphere_vao.bind();
 
-    light_sphere_vao.addIndices(sphere_indices);
+    // TODO: Don't leak memory
+    auto sphere_index_buffer = new GLTools::Buffer<uint32_t>(GLTools::Element, {{sizeof(uint32_t), 1}}, sphere_indices);
+
+    light_sphere_vao.addIndices(sphere_index_buffer, sphere_indices.size());
 }
 
 void Frender::Renderer::render(float delta)

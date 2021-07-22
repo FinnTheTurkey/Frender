@@ -116,7 +116,7 @@ void Frender::GLTools::VertexArray::bind()
             glVertexAttribPointer(buffer_count, s.count, GL_FLOAT, GL_FALSE, i->_getBufferInfo().total_size, (void*)(1l + (cumulative_size - 1)));
             glEnableVertexAttribArray(buffer_count);
 
-            if (i->_getBufferInfo().type == Array)
+            if (i->_getBufferInfo().type == Dynamic)
             {
                 glVertexAttribDivisor(buffer_count, 1);
             }
@@ -129,14 +129,15 @@ void Frender::GLTools::VertexArray::bind()
     }
 }
 
-void Frender::GLTools::VertexArray::addIndices(const std::vector<uint32_t>& indices)
+void Frender::GLTools::VertexArray::addIndices(Buffer<uint32_t>* buff, size_t size)
 {
+    ebo = buff;
+
+    // Bind index buffer
     glBindVertexArray(vao);
-    
-    glGenBuffers(1, &ebo);
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ebo);
-    glBufferData(GL_ELEMENT_ARRAY_BUFFER, indices.size() * sizeof(uint32_t), &indices[0], GL_STATIC_DRAW);
-    index_count = indices.size();
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ebo->_getBufferInfo().handle);
+
+    index_count = size;
 }
 
 void Frender::GLTools::VertexArray::draw(int instances)
@@ -158,7 +159,7 @@ void Frender::GLTools::VertexArray::destroy()
     }
 
     glDeleteVertexArrays(1, &vao);
-    glDeleteBuffers(1, &ebo);
+    // glDeleteBuffers(1, &ebo);
 }
 
 // ====================================================================

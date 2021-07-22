@@ -150,8 +150,8 @@ void main()\n\
 \n\
     vec3 end_result = reflectanceEquation(normal, V, F0, color.xyz, light_pos, pos, light_color, roughness, metal);\n\
 \n\
-    FragColor = vec4(end_result, 1);\n\
-    // FragColor = vec4(0, 1, 0, 1);\n\
+    // FragColor = vec4(end_result, 1);\n\
+    FragColor = vec4(0, 0.01, 0, 1);\n\
 \n\
     // If it's higher than a certain point, it goes into\n\
     // The bloom buffer\n\
