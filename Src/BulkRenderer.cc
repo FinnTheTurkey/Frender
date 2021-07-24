@@ -23,27 +23,50 @@ void Frender::Renderer::bulkRender()
     auto mv = projection * inv_camera;
 
     stage1_bulk_shader.enable();
-    for (auto i : render_objects)
+    for (auto mat : scene_tree)
     {
-        i.mesh.enable();
-        GLERRORCHECK();
+        mat.mat.uniforms.enable();
+        getMaterial(mat.mat.mat_ref)->textures.enable();
 
-        // Enable material UBO
-        i.mat.uniforms.enable();
-        GLERRORCHECK();
-        
-        // Set important uniforms
-        i.mat.shader.setUniforms(mv * i.transform, i.transform);
-        GLERRORCHECK();
+        for (auto mesh : mat.meshes)
+        {
+            // Update transforms
+            int i = 0;
+            for (auto ro : mesh.cpu_info)
+            {
+                mesh.gpu_buffer->set(i, {mv * ro.model, ro.model});
+                i++;
+            }
 
-        // Enable textures
-        // Cache miss :(
-        getMaterial(i.mat.mat_ref)->textures.enable();
-        GLERRORCHECK();
+            // Upload to GPU
+            mesh.gpu_buffer->apply();
 
-        glDrawElements(GL_TRIANGLES, i.mesh.num_indices, GL_UNSIGNED_INT, 0);
-        GLERRORCHECK();
+            // Render
+            mesh.vao.enable();
+            mesh.vao.draw(mesh.cpu_info.size());
+        }
     }
+    // for (auto i : render_objects)
+    // {
+    //     i.mesh.enable();
+    //     GLERRORCHECK();
+
+    //     // Enable material UBO
+    //     i.mat.uniforms.enable();
+    //     GLERRORCHECK();
+        
+    //     // Set important uniforms
+    //     i.mat.shader.setUniforms(mv * i.transform, i.transform);
+    //     GLERRORCHECK();
+
+    //     // Enable textures
+    //     // Cache miss :(
+    //     getMaterial(i.mat.mat_ref)->textures.enable();
+    //     GLERRORCHECK();
+
+    //     glDrawElements(GL_TRIANGLES, i.mesh.num_indices, GL_UNSIGNED_INT, 0);
+    //     GLERRORCHECK();
+    // }
 
     // stage2_fbo.disable();
 

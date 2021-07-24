@@ -92,12 +92,16 @@ void Frender::GLTools::MeshBuffer::enable()
 // ====================================================================
 void Frender::GLTools::VertexArray::bind()
 {
-    if (index_count == 0)
+    GLERRORCHECK();
+    if (!has_vao)
     {
         glGenVertexArrays(1, &vao);
+        GLERRORCHECK();
+        has_vao = true;
     }
 
     glBindVertexArray(vao);
+    GLERRORCHECK();
 
     uint32_t grand_total_size = 0;
     for (auto i : buffers)
@@ -115,10 +119,12 @@ void Frender::GLTools::VertexArray::bind()
         {
             glVertexAttribPointer(buffer_count, s.count, GL_FLOAT, GL_FALSE, i->_getBufferInfo().total_size, (void*)(1l + (cumulative_size - 1)));
             glEnableVertexAttribArray(buffer_count);
+            GLERRORCHECK();
 
             if (i->_getBufferInfo().type == Dynamic)
             {
                 glVertexAttribDivisor(buffer_count, 1);
+                GLERRORCHECK();
             }
 
             buffer_count ++;
@@ -127,6 +133,11 @@ void Frender::GLTools::VertexArray::bind()
 
         glBindBuffer(GL_ARRAY_BUFFER, 0);
     }
+
+    // Bind EBO
+    GLERRORCHECK();
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ebo->_getBufferInfo().handle);
+    GLERRORCHECK();
 }
 
 void Frender::GLTools::VertexArray::addIndices(Buffer<uint32_t>* buff, size_t size)
@@ -134,8 +145,12 @@ void Frender::GLTools::VertexArray::addIndices(Buffer<uint32_t>* buff, size_t si
     ebo = buff;
 
     // Bind index buffer
-    glBindVertexArray(vao);
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ebo->_getBufferInfo().handle);
+    // It will be bound with the bind function
+    // GLERRORCHECK();
+    // glBindVertexArray(vao);
+    // GLERRORCHECK();
+    // glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ebo->_getBufferInfo().handle);
+    // GLERRORCHECK();
 
     index_count = size;
 }
@@ -417,6 +432,7 @@ void Frender::GLTools::UniformBuffer::set(const std::string &name, UniformType v
         {
             i.value = value;
 
+            glBindBuffer(GL_UNIFORM_BUFFER, handle);
             setBufferValue(i);
         }
     }

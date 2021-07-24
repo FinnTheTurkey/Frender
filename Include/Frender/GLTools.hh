@@ -118,10 +118,11 @@ namespace Frender::GLTools
         Buffer<uint32_t>* ebo;
         size_t index_count = 0;
         std::vector<IBuffer*> buffers;
+        bool has_vao = false;
     };
 
     template <typename T>
-    class Buffer : IBuffer
+    class Buffer : public IBuffer
     {
     public:
         Buffer() {};
@@ -197,7 +198,9 @@ namespace Frender::GLTools
                 for (auto i : vaos)
                 {
                     // Update the VAO to match the new buffer
+                    GLERRORCHECK();
                     i->bind();
+                    GLERRORCHECK();
                 }
 
                 reallocate = false;

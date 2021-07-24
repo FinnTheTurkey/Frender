@@ -91,12 +91,14 @@ Frender::Renderer::Renderer(int width, int height)
     light_sphere_vao = GLTools::VertexArray();
     light_sphere_vao.addBuffer((GLTools::IBuffer*)vertex_buffer);
     light_sphere_vao.addBuffer((GLTools::IBuffer*)&point_light_buffer);
-    light_sphere_vao.bind();
 
     // TODO: Don't leak memory
     auto sphere_index_buffer = new GLTools::Buffer<uint32_t>(GLTools::Element, {{sizeof(uint32_t), 1}}, sphere_indices);
 
     light_sphere_vao.addIndices(sphere_index_buffer, sphere_indices.size());
+    GLERRORCHECK();
+    light_sphere_vao.bind();
+    GLERRORCHECK();
 }
 
 void Frender::Renderer::render(float delta)
@@ -278,30 +280,112 @@ Frender::Texture Frender::Renderer::createTexture(int width, int height, const u
     return tex;
 }
 
-Frender::MeshRef Frender::Renderer::createMesh(const std::vector<Vertex>& vertices, const std::vector<uint32_t>& indices)
+Frender::MeshRef Frender::Renderer::createMesh(const std::vector<Vertex>& vertices, const std::vector<uint32_t>& nindices)
 {
-    meshes.push_back({vertices, indices});
+    // meshes.push_back({vertices, indices});
+    GLTools::Buffer<Vertex>* vertex_buffer = new GLTools::Buffer<Vertex>(GLTools::Static, {
+        {sizeof(glm::vec3), 3},
+        {sizeof(glm::vec3), 3},
+        {sizeof(glm::vec2), 2},
+        {sizeof(glm::vec3), 3},
+        {sizeof(glm::vec3), 3}
+    }, vertices);
+
+    auto index_buffer = new GLTools::Buffer<uint32_t>(GLTools::Element, {{sizeof(uint32_t), 1}}, nindices);
+
+    meshes.push_back(vertex_buffer);
+    indices.push_back({nindices.size(), index_buffer});
+
     return meshes.size()-1;
 }
 
 Frender::RenderObjectRef Frender::Renderer::createRenderObject(MeshRef mesh, uint32_t mat, glm::mat4 transform)
 {
-    // TODO: Insert in a sorted fasion
-
     auto m = getMaterial(mat);
 
-    RenderObject r;
-    r.transform = transform;
-    r.mesh = meshes[mesh];
-    r.mesh_index = mesh;
-    r.mat = {mat, m->uniforms.getRef(), m->shader};
+    // Find the correct section, of create if it doesn't exist
+    int mat_section_index = -1;
+    int c = 0;
+    for (auto i : scene_tree)
+    {
+        if (i.mat.mat_ref == mat)
+        {
+            mat_section_index = c;
+        }
+        c++;
+    }
 
-    render_objects.push_back(r);
-    uint32_t* index = new uint32_t(render_objects.size()-1);
+    if (mat_section_index == -1)
+    {
+        // Add a new mat section
+        scene_tree.push_back(MatSection {{mat, m->uniforms.getRef(), m->shader}, {}});
+        mat_section_index = scene_tree.size() - 1;
+    }
 
-    render_objects[(*index)].pos = index;
+    MatSection* ms = &scene_tree[mat_section_index];
 
-    return {index, this};
+    // Find Mesh Section
+    int mesh_section_index = -1;
+    c = 0;
+    for (auto i : ms->meshes)
+    {
+        if (i.mesh == mesh)
+        {
+            mesh_section_index = c;
+        }
+        c++;
+    }
+
+    if (mesh_section_index == -1)
+    {
+        // Add a new mesh section
+        // We have to create some OpenGL Objects for this one
+
+        // Create buffer for renderobjects
+        GLTools::Buffer<ROInfoGPU>* gpu_buffer = new GLTools::Buffer<ROInfoGPU>(GLTools::Dynamic, {
+            // Matrix has to be 4 values
+            {sizeof(glm::vec4), 4},
+            {sizeof(glm::vec4), 4},
+            {sizeof(glm::vec4), 4},
+            {sizeof(glm::vec4), 4},
+
+            // Matrix has to be 4 values
+            {sizeof(glm::vec4), 4},
+            {sizeof(glm::vec4), 4},
+            {sizeof(glm::vec4), 4},
+            {sizeof(glm::vec4), 4}
+        }, {});
+
+        auto v = GLTools::VertexArray();
+        ms->meshes.push_back(MeshSection {mesh, v, {}, gpu_buffer});
+        int index = ms->meshes.size() - 1;
+
+        GLERRORCHECK();
+        ms->meshes[index].vao.addBuffer(meshes[mesh]);
+        GLERRORCHECK();
+        ms->meshes[index].vao.addBuffer(gpu_buffer);
+        GLERRORCHECK();
+        ms->meshes[index].vao.addIndices(indices[mesh].second, indices[mesh].first);
+        GLERRORCHECK();
+        ms->meshes[index].vao.bind();
+        GLERRORCHECK();
+        
+        mesh_section_index = ms->meshes.size() - 1;
+    }
+
+    MeshSection* mes = &ms->meshes[mesh_section_index];
+
+    // Add actual data to CPU and GPU
+    uint32_t* index = new uint32_t(mes->cpu_info.size());
+    mes->cpu_info.push_back({index, transform});
+    mes->gpu_buffer->pushBack({transform, transform});
+
+    return {mat_section_index, mesh_section_index, index, this};
+}
+
+Frender::RenderObjectRef Frender::Renderer::duplicateRenderObject(RenderObjectRef ro)
+{
+    return createRenderObject(scene_tree[ro.mat_section].meshes[ro.mesh_section].mesh, scene_tree[ro.mat_section].mat.mat_ref, scene_tree[ro.mat_section].meshes[ro.mesh_section].cpu_info[*ro.index].model);
 }
 
 uint32_t Frender::Renderer::createPointLight(glm::vec3 position, glm::vec3 color, float radius)
@@ -324,16 +408,17 @@ uint32_t Frender::Renderer::createDirectionalLight(glm::vec3 color, glm::vec3 di
 
 glm::mat4 Frender::RenderObjectRef::getTransform()
 {
-    return renderer->_getRenderObject(index)->transform;
+    return renderer->_getRenderObject(mat_section, mesh_section, index)->model;
 }
 
 void Frender::RenderObjectRef::setTransform(glm::mat4 t)
 {
-    renderer->_getRenderObject(index)->transform = t;
+    renderer->_getRenderObject(mat_section, mesh_section, index)->model = t;
 }
 
 Frender::RenderObjectRef Frender::RenderObjectRef::duplicate()
 {
-    auto ob = renderer->_getRenderObject(index);
-    return renderer->createRenderObject(ob->mesh_index, ob->mat.mat_ref, ob->transform);
+    return renderer->duplicateRenderObject(*this);
 }
+
+// TODO: Free memory allocated by the buffers, and generally clean up better

@@ -96,16 +96,21 @@ namespace Frender
     {
     public:
         RenderObjectRef():renderer(nullptr) {};
-        RenderObjectRef(uint32_t* index, Renderer* renderer):index(index), renderer(renderer) {}
+        RenderObjectRef(int mat_section, int mesh_section, uint32_t* index, Renderer* renderer)
+        :mat_section(mat_section), mesh_section(mesh_section), index(index), renderer(renderer) {}
         
         glm::mat4 getTransform();
         void setTransform(glm::mat4 t);
 
         RenderObjectRef duplicate();
 
-    private:
+        int mat_section;
+        int mesh_section;
         uint32_t* index;
         Renderer* renderer;
+
+    private:
+        
     };
 
     struct PointLight
@@ -130,6 +135,33 @@ namespace Frender
         uint32_t cam_pos;
         uint32_t light_pos;
         uint32_t radius;
+    };
+
+    struct ROInfo
+    {
+        uint32_t* index;
+        glm::mat4 model;
+    };
+
+    struct ROInfoGPU
+    {
+        glm::mat4 mvp;
+        glm::mat4 model;
+    };
+
+    struct MeshSection
+    {
+        MeshRef mesh;
+        GLTools::VertexArray vao;
+
+        std::vector<ROInfo> cpu_info;
+        GLTools::Buffer<ROInfoGPU>* gpu_buffer; // Buffer must be ptr because vector can re-allocate
+    };
+
+    struct MatSection
+    {
+        MaterialRef mat;
+        std::vector<MeshSection> meshes;
     };
 
     class Renderer
@@ -171,6 +203,11 @@ namespace Frender
         */
         RenderObjectRef createRenderObject(MeshRef mesh, uint32_t mat, glm::mat4 transform);
 
+        /**
+        Duplicates a given render object
+        */
+        RenderObjectRef duplicateRenderObject(RenderObjectRef ro);
+
         void setCamera(const glm::mat4& matrix);
 
         /**
@@ -206,9 +243,9 @@ namespace Frender
         double frame_rate;
         double frame_time;
 
-        RenderObject* _getRenderObject(uint32_t* index)
+        ROInfo* _getRenderObject(int mat_section, int mesh_section, uint32_t* index)
         {
-            return &render_objects[(*index)];
+            return &scene_tree[mat_section].meshes[mesh_section].cpu_info[*(index)];
         }
 
     private:
@@ -254,9 +291,28 @@ namespace Frender
 
         // Pools
         std::vector<Material> materials;
-        std::vector<RenderObject> render_objects;
-        std::vector<GLTools::MeshBuffer> meshes;
+        // std::vector<RenderObject> render_objects;
+        // std::vector<GLTools::MeshBuffer> meshes;
+        std::vector<GLTools::Buffer<Vertex>*> meshes;
+        std::vector<std::pair<uint32_t, GLTools::Buffer<uint32_t>*>> indices;
         std::vector<Texture> textures;
+
+        // Scene tree for the bulk renderer
+        /*
+        Material 1
+        ┌────────────────────────────────────────────────────────────┐
+        │┼─────────────────────┼┼────────────────────┼┼──────────────┤
+        ││Mesh 1               ││Mesh 2              ││Mesh 3        │
+        │┼┬───────────────────┬┼│                    ││              │
+        │┼│Buffer             │┼│                    ││              │
+        │┼│                   │┼│                    ││              │
+        │┼┼───────────────────┼┼│                    ││              │
+        │┼│Info on CPU        │┼│                    ││              │
+        │┼┼───────────────────┼┼│                    ││              │
+        │┼┼┼┼┼┼┼┼┼┼┼┼┼┼┼┼┼┼┼┼┼┼┼┼────────────────────┼┼──────────────┤
+        └────────────────────────────────────────────────────────────┘
+        */
+        std::vector<MatSection> scene_tree;
 
         // Pools of lights
         std::vector<PointLight> point_lights;

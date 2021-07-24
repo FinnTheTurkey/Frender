@@ -5,6 +5,8 @@ layout (location = 1) in vec3 normals;\n\
 layout (location = 2) in vec2 tex_coord;\n\
 layout (location = 3) in vec3 tang;\n\
 layout (location = 4) in vec3 bitang;\n\
+layout (location = 5) in mat4 mvp;\n\
+layout (location = 9) in mat4 model;\n\
 \n\
 out vec2 tex_coords;\n\
 out vec3 normal;\n\
@@ -12,8 +14,8 @@ out vec3 world_pos;\n\
 \n\
 out mat3 tbn;\n\
 \n\
-uniform mat4 mvp;\n\
-uniform mat4 model;\n\
+// uniform mat4 mvp;\n\
+// uniform mat4 model;\n\
 \n\
 void main()\n\
 {\n\
