@@ -20,7 +20,17 @@ void Frender::Renderer::bulkRender()
     glCullFace(GL_BACK);
     GLERRORCHECK();
 
-    auto mv = projection * inv_camera;
+    auto vp = projection * inv_camera;
+    auto fcvp = vp;
+
+    // Create frustum planes - this probably won't work
+    // Also, try not to do it _every frame_
+    for (int i = 4; i--; ) frustum_planes[0][i]    = fcvp[i][3] + fcvp[i][0];
+    for (int i = 4; i--; ) frustum_planes[1][i]    = fcvp[i][3] - fcvp[i][0]; 
+    for (int i = 4; i--; ) frustum_planes[2][i]    = fcvp[i][3] + fcvp[i][1];
+    for (int i = 4; i--; ) frustum_planes[3][i]    = fcvp[i][3] - fcvp[i][1];
+    for (int i = 4; i--; ) frustum_planes[4][i]    = fcvp[i][3] + fcvp[i][2];
+    for (int i = 4; i--; ) frustum_planes[5][i]    = fcvp[i][3] - fcvp[i][2];
 
     stage1_bulk_shader.enable();
     for (auto mat : scene_tree)
@@ -31,11 +41,30 @@ void Frender::Renderer::bulkRender()
         for (auto mesh : mat.meshes)
         {
             // Update transforms
-            int i = 0;
+            int to_draw = 0;
+            int max = mesh.gpu_buffer->size();
             for (auto ro : mesh.cpu_info)
             {
-                mesh.gpu_buffer->set(i, {mv * ro.model, ro.model});
-                i++;
+                // mesh.gpu_buffer->set(i, {mv * ro.model, ro.model});
+
+                // Frustum culling
+                ro.bounding_box.transformBoundingBox(ro.model);
+
+                // Check to make sure min and max are both in clipspace
+                if (!frustumCull(ro.bounding_box.min_pos, ro.bounding_box.max_pos))
+                {
+                    // No point is in the view frustum, so we can safely cull
+                    // Add to the end of the buffer
+                    mesh.gpu_buffer->set(max, {glm::mat4(), ro.model});
+                    max --;
+                }
+                else
+                {
+                    // We do have to draw it
+                    auto mvp = vp * ro.model;
+                    mesh.gpu_buffer->set(to_draw, {mvp, ro.model});
+                    to_draw++;
+                }
             }
 
             // Upload to GPU
@@ -43,30 +72,9 @@ void Frender::Renderer::bulkRender()
 
             // Render
             mesh.vao.enable();
-            mesh.vao.draw(mesh.cpu_info.size());
+            mesh.vao.draw(to_draw); // Only render elements added to the front
         }
     }
-    // for (auto i : render_objects)
-    // {
-    //     i.mesh.enable();
-    //     GLERRORCHECK();
-
-    //     // Enable material UBO
-    //     i.mat.uniforms.enable();
-    //     GLERRORCHECK();
-        
-    //     // Set important uniforms
-    //     i.mat.shader.setUniforms(mv * i.transform, i.transform);
-    //     GLERRORCHECK();
-
-    //     // Enable textures
-    //     // Cache miss :(
-    //     getMaterial(i.mat.mat_ref)->textures.enable();
-    //     GLERRORCHECK();
-
-    //     glDrawElements(GL_TRIANGLES, i.mesh.num_indices, GL_UNSIGNED_INT, 0);
-    //     GLERRORCHECK();
-    // }
 
     // stage2_fbo.disable();
 
@@ -131,27 +139,13 @@ void Frender::Renderer::bulkRender()
     stage2_light_shader.setUniform(light_uniforms.cam_pos, camera * glm::vec4(0, 0, 0, 1));
     
     // Run lighting pass
-    // for (auto i : point_lights)
-    // {
-    //     // Set important uniforms
-    //     stage2_light_shader.setUniform(light_uniforms.color, i.color);
-    //     stage2_light_shader.setUniform(light_uniforms.light_pos, i.position);
-    //     stage2_light_shader.setUniform(light_uniforms.radius, i.radius);
-
-    //     // Create transformation matrix
-    //     auto m = glm::scale(glm::translate(glm::mat4(), i.position), glm::vec3(i.radius));
-    //     stage2_light_shader.setUniforms(projection * inv_camera * m, m);
-
-    //     // Render
-    //     glDrawElements(GL_TRIANGLES, light_sphere.num_indices, GL_UNSIGNED_INT, 0);
-    // }
-
     // New method: Draw instanced
     // Update all the uniforms
+    int good = 0, bad = point_light_buffer.size();
     for (int i = 0; i < point_light_buffer.size(); i++)
     {
         auto v = point_light_buffer.get(i);
-        v.transform = mv * glm::scale(glm::translate(glm::mat4(), v.position), glm::vec3(v.radius));
+        v.transform = vp * glm::scale(glm::translate(glm::mat4(), v.position), glm::vec3(v.radius));
         point_light_buffer.set(i, v);
     }
 
@@ -201,6 +195,24 @@ void Frender::Renderer::bulkRender()
 
     glDrawElements(GL_TRIANGLES, plane.num_indices, GL_UNSIGNED_INT, 0);
     GLERRORCHECK();
+}
+
+bool Frender::Renderer::frustumCull(glm::vec3 min, glm::vec3 max)
+{
+    // Copy and pasted from a sketchy site
+    // bool inside = true; //test all 6 frustum planes 
+    for (int i = 0; i<6; i++) 
+    {
+        //pick closest point to plane and check if it behind the plane
+        //if yes - object outside frustum 
+        float d = glm::max(min.x * frustum_planes[i].x, max.x * frustum_planes[i].x) + glm::max(min.y * frustum_planes[i].y, max.y * frustum_planes[i].y) + glm::max(min.z * frustum_planes[i].z, max.z * frustum_planes[i].z) + frustum_planes[i].w;
+        // inside &= d > 0;
+        if (d < -1)
+        {
+            return false; //with flag works faster
+        }
+    } 
+    return true;
 }
 
 void Frender::Renderer::processBloom()

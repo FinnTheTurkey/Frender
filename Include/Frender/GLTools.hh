@@ -242,11 +242,12 @@ namespace Frender::GLTools
         void addDependantVao(VertexArray* vao) override;
         void removeDependantVao(VertexArray* vao) override;
 
+        std::vector<T> data;
+
     private:
         uint32_t handle;
         BufferType type;
         std::vector<_VertexAttribSize> sizes;
-        std::vector<T> data;
         size_t total_size;
 
         std::vector<uint32_t> staged_changes;

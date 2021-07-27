@@ -137,10 +137,76 @@ namespace Frender
         uint32_t radius;
     };
 
+    struct BoundingBox
+    {
+        glm::vec3 og_min;
+        glm::vec3 og_max;
+
+        glm::vec3 min_pos;
+        glm::vec3 max_pos;
+
+        void transformBoundingBox(glm::mat4 transform)
+        {
+            glm::vec4 box_mesh[8];
+            glm::vec4 global_min(transform * glm::vec4(og_min, 1)), global_max(transform * glm::vec4(og_max, 1));
+
+            // Manually add the points
+            // Front
+            box_mesh[0] = glm::vec4(global_min.x, global_min.y, global_min.z, 1);
+            box_mesh[1] = glm::vec4(global_max.x, global_min.y, global_min.z, 1);
+            box_mesh[2] = glm::vec4(global_min.x, global_max.y, global_min.z, 1);
+            box_mesh[3] = glm::vec4(global_max.x, global_max.y, global_min.z, 1);
+
+            // Back
+            box_mesh[4] = glm::vec4(global_min.x, global_min.y, global_max.z, 1);
+            box_mesh[5] = glm::vec4(global_max.x, global_min.y, global_max.z, 1);
+            box_mesh[6] = glm::vec4(global_min.x, global_max.y, global_max.z, 1);
+            box_mesh[7] = glm::vec4(global_max.x, global_max.y, global_max.z, 1);
+
+            // Now find the new biggest and smallest
+            // Start with a position in the mesh for the min and max
+            min_pos = glm::vec3(box_mesh[0].x, box_mesh[0].y, box_mesh[0].z);
+            max_pos = glm::vec3(box_mesh[0].x, box_mesh[0].y, box_mesh[0].z);
+
+            for (int i = 0; i < 8; i++)
+            {
+                auto point = box_mesh[i];
+
+                // Do each X, Y, and Z individually to make sure we cover everything
+                if (point.x < min_pos.x)
+                {
+                    min_pos.x = point.x;
+                }
+                if (point.y < min_pos.y)
+                {
+                    min_pos.y = point.y;
+                }
+                if (point.z < min_pos.z)
+                {
+                    min_pos.z = point.z;
+                }
+
+                if (point.x > max_pos.x)
+                {
+                    max_pos.x = point.x;
+                }
+                if (point.y > max_pos.y)
+                {
+                    max_pos.y = point.y;
+                }
+                if (point.z > max_pos.z)
+                {
+                    max_pos.z = point.z;
+                }
+            }
+        }
+    };
+
     struct ROInfo
     {
         uint32_t* index;
         glm::mat4 model;
+        BoundingBox bounding_box;
     };
 
     struct ROInfoGPU
@@ -295,6 +361,7 @@ namespace Frender
         // std::vector<GLTools::MeshBuffer> meshes;
         std::vector<GLTools::Buffer<Vertex>*> meshes;
         std::vector<std::pair<uint32_t, GLTools::Buffer<uint32_t>*>> indices;
+        std::vector<BoundingBox> bounding_boxes;
         std::vector<Texture> textures;
 
         // Scene tree for the bulk renderer
@@ -323,6 +390,9 @@ namespace Frender
         glm::mat4 inv_camera;
         glm::mat4 projection;
 
+        // Planes for frustum culling
+        glm::vec4 frustum_planes[6];
+
         // Less easily changed settings
         int width;
         int height;
@@ -333,6 +403,7 @@ namespace Frender
 
         // Functions
         void bulkRender();
+        bool frustumCull(glm::vec3 min, glm::vec3 max);
         void processBloom();
     };
 }

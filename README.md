@@ -9,6 +9,7 @@ Features
  - Light Volumes (kinda broken)
  - PBR Materials (also kinda broken)
  - Automatic mesh instancing to reduce draw calls and CPU overhead
+ - Frustum Culling
  - Very broken bloom support
  - HDR rendering pipeline (though it _cannot_ output in HDR for HDR moniters)
 

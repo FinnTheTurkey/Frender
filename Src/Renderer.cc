@@ -136,6 +136,9 @@ void Frender::Renderer::setCamera(const glm::mat4 &matrix)
 {
     camera = matrix;
     inv_camera = glm::inverse(matrix);
+
+    // Calculate frustum planes
+
 }
 
 void Frender::Renderer::setRenderResolution(int new_width, int new_height)
@@ -295,6 +298,44 @@ Frender::MeshRef Frender::Renderer::createMesh(const std::vector<Vertex>& vertic
 
     meshes.push_back(vertex_buffer);
     indices.push_back({nindices.size(), index_buffer});
+
+    // Generate bounding box
+    auto min_pos = glm::vec3(vertices[0].position.x, vertices[0].position.y, vertices[0].position.z);
+    auto max_pos = glm::vec3(vertices[0].position.x, vertices[0].position.y, vertices[0].position.z);
+
+    for (int i = 0; i < vertices.size(); i++)
+    {
+        auto point = vertices[i].position;
+
+        // Do each X, Y, and Z individually to make sure we cover everything
+        if (point.x < min_pos.x)
+        {
+            min_pos.x = point.x;
+        }
+        if (point.y < min_pos.y)
+        {
+            min_pos.y = point.y;
+        }
+        if (point.z < min_pos.z)
+        {
+            min_pos.z = point.z;
+        }
+
+        if (point.x > max_pos.x)
+        {
+            max_pos.x = point.x;
+        }
+        if (point.y > max_pos.y)
+        {
+            max_pos.y = point.y;
+        }
+        if (point.z > max_pos.z)
+        {
+            max_pos.z = point.z;
+        }
+    }
+
+    bounding_boxes.push_back({min_pos, max_pos, min_pos, max_pos});
 
     return meshes.size()-1;
 }
