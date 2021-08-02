@@ -9,6 +9,7 @@ uniform sampler2D bloom_blur;\n\
 \n\
 uniform float bloom_exposure;\n\
 \n\
+\n\
 void main()\n\
 {\n\
     vec3 color = texture(frame, tex_coords).rgb;\n\
@@ -22,5 +23,4 @@ void main()\n\
     mapped = pow(mapped, vec3(1.0 / 2.2)); // 2.2 is gamma\n\
 \n\
     FragColor = vec4(mapped, 1);\n\
-    \n\
 }";

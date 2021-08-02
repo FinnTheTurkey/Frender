@@ -42,16 +42,15 @@ void Frender::Renderer::bulkRender()
         {
             // Update transforms
             int to_draw = 0;
-            int max = mesh.gpu_buffer->size();
+            int max = mesh.gpu_buffer->size()-1;
             for (auto ro : mesh.cpu_info)
             {
-                // mesh.gpu_buffer->set(i, {mv * ro.model, ro.model});
-
                 // Frustum culling
-                ro.bounding_box.transformBoundingBox(ro.model);
+                // ro.bounding_box.transformBoundingBox(ro.model);
 
-                // Check to make sure min and max are both in clipspace
-                if (!frustumCull(ro.bounding_box.min_pos, ro.bounding_box.max_pos))
+                // TODO: Fix frustum culling
+                // if (!frustumCull(ro.bounding_box.min_pos, ro.bounding_box.max_pos))
+                if (false)
                 {
                     // No point is in the view frustum, so we can safely cull
                     // Add to the end of the buffer
@@ -67,12 +66,15 @@ void Frender::Renderer::bulkRender()
                 }
             }
 
-            // Upload to GPU
-            mesh.gpu_buffer->apply();
+            if (to_draw > 0)
+            {
+                // Upload to GPU
+                mesh.gpu_buffer->apply();
 
-            // Render
-            mesh.vao.enable();
-            mesh.vao.draw(to_draw); // Only render elements added to the front
+                // Render
+                mesh.vao->enable();
+                mesh.vao->draw(to_draw); // Only render elements added to the front
+            }
         }
     }
 

@@ -54,7 +54,13 @@ void main()
 
     if (has_diffuse_map == 1)
     {
-        ColorRoughness = vec4(texture(diffuse_map, tex_coords).xyz, rness);
+        vec4 tx = texture(diffuse_map, tex_coords);
+        ColorRoughness = vec4(tx.xyz, rness);
+
+        if (tx.w == 0)
+        {
+            discard;
+        }
     }
     else
     {

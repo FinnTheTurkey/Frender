@@ -95,7 +95,7 @@ namespace Frender::GLTools
     class VertexArray
     {
     public:
-        VertexArray() {};
+        VertexArray():buffers({}), ebo(nullptr) {};
 
         void addBuffer(IBuffer* buff)
         {
@@ -127,7 +127,7 @@ namespace Frender::GLTools
     public:
         Buffer() {};
         Buffer(BufferType type, const std::vector<_VertexAttribSize>& sizes, const std::vector<T> initial_data)
-        :type(type), sizes(sizes)
+        :type(type), sizes(sizes), staged_changes({})
         {
             // Calculate total size
             total_size = 0;
@@ -167,6 +167,10 @@ namespace Frender::GLTools
 
         void set(int index, T item)
         {
+            if (index > size()-1)
+            {
+                std::cerr << "Error: Cannot set item bigger then size. Use pushBack instead. \n";
+            }
             data[index] = item;
 
             // Stage the change

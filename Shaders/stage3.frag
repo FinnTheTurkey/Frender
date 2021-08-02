@@ -21,5 +21,4 @@ void main()
     mapped = pow(mapped, vec3(1.0 / 2.2)); // 2.2 is gamma
 
     FragColor = vec4(mapped, 1);
-    
 }

@@ -480,7 +480,7 @@ Frender::GLTools::Texture::Texture(int width, int height, const unsigned char* d
 
     // Add data
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, data);
-    glGenerateMipmap(GL_TEXTURE_2D);
+    // glGenerateMipmap(GL_TEXTURE_2D);
 
     vram_usage += width * height * 4;
 }

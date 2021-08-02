@@ -96,7 +96,9 @@ vec3 reflectanceEquation(vec3 N, vec3 V, vec3 F0, vec3 diffuse, vec3 light_pos, 
     vec3 radiance;\n\
     // if (light_infos.x == 0.0)\n\
     // {\n\
-        float attenuation = pow(1.0-pow((distance/radius),4.0),2.0)/distance*distance+1.0;\n\
+        // float attenuation = pow(1.0-pow((distance/(radius/2)),4.0),2.0)/distance*distance+1.0;\n\
+        // float attenuation = 1.0 / (distance * distance);\n\
+        float attenuation = clamp(1.0 - distance/(radius/1.5), 0.0, 1.0);\n\
         radiance = light_color * attenuation;\n\
     // }\n\
     // else if (light_infos.x == 2.0) // Spot light\n\

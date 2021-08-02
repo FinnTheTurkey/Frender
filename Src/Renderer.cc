@@ -359,11 +359,11 @@ Frender::RenderObjectRef Frender::Renderer::createRenderObject(MeshRef mesh, uin
     if (mat_section_index == -1)
     {
         // Add a new mat section
-        scene_tree.push_back(MatSection {{mat, m->uniforms.getRef(), m->shader}, {}});
+        scene_tree.push_back(MatSection<MeshSection<ROInfo, ROInfoGPU>> {{mat, m->uniforms.getRef(), m->shader}, {}});
         mat_section_index = scene_tree.size() - 1;
     }
 
-    MatSection* ms = &scene_tree[mat_section_index];
+    MatSection<MeshSection<ROInfo, ROInfoGPU>>* ms = &scene_tree[mat_section_index];
 
     // Find Mesh Section
     int mesh_section_index = -1;
@@ -397,24 +397,24 @@ Frender::RenderObjectRef Frender::Renderer::createRenderObject(MeshRef mesh, uin
             {sizeof(glm::vec4), 4}
         }, {});
 
-        auto v = GLTools::VertexArray();
-        ms->meshes.push_back(MeshSection {mesh, v, {}, gpu_buffer});
+        auto v = new GLTools::VertexArray();
+        ms->meshes.push_back(MeshSection<ROInfo, ROInfoGPU> {mesh, v, {}, gpu_buffer});
         int index = ms->meshes.size() - 1;
 
         GLERRORCHECK();
-        ms->meshes[index].vao.addBuffer(meshes[mesh]);
+        ms->meshes[index].vao->addBuffer(meshes[mesh]);
         GLERRORCHECK();
-        ms->meshes[index].vao.addBuffer(gpu_buffer);
+        ms->meshes[index].vao->addBuffer(gpu_buffer);
         GLERRORCHECK();
-        ms->meshes[index].vao.addIndices(indices[mesh].second, indices[mesh].first);
+        ms->meshes[index].vao->addIndices(indices[mesh].second, indices[mesh].first);
         GLERRORCHECK();
-        ms->meshes[index].vao.bind();
+        ms->meshes[index].vao->bind();
         GLERRORCHECK();
         
         mesh_section_index = ms->meshes.size() - 1;
     }
 
-    MeshSection* mes = &ms->meshes[mesh_section_index];
+    MeshSection<ROInfo, ROInfoGPU>* mes = &ms->meshes[mesh_section_index];
 
     // Add actual data to CPU and GPU
     uint32_t* index = new uint32_t(mes->cpu_info.size());
@@ -431,6 +431,7 @@ Frender::RenderObjectRef Frender::Renderer::duplicateRenderObject(RenderObjectRe
 
 uint32_t Frender::Renderer::createPointLight(glm::vec3 position, glm::vec3 color, float radius)
 {
+    radius *= 1.5;
     auto m = glm::scale(glm::translate(glm::mat4(), position), glm::vec3(radius));
 
     point_lights.push_back({color, position, radius, m});

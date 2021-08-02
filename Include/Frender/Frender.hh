@@ -36,6 +36,11 @@ namespace Frender
         std::string title;
     };
 
+    enum MouseMode
+    {
+        Regular, Captured
+    };
+
     class Window
     {
     public:
@@ -50,6 +55,31 @@ namespace Frender
 
         void setVsync(bool value);
 
+        // Input handling
+        void _keyPressCallback(int key, bool state);
+        void _buttonPressCallback(int button, bool state);
+        void _resetCursorMode();
+
+        bool isKeyDown(int key);
+
+        bool isKeyJustPressed(int key);
+
+        bool isKeyJustReleased(int key);
+
+        bool isMouseButtonDown(int button);
+
+        bool isMouseButtonJustPressed(int button);
+
+        bool isMouseButtonJustReleased(int button);
+
+        glm::vec2 getMousePosition();
+
+        glm::vec2 getMouseOffset();
+
+        void setMouseMode(MouseMode mode);
+
+        // TODO: Scrolling and joystick
+
         // Stats
         // The time_time is the time it took the engine to process and render the frame,
         double time_time;
@@ -57,6 +87,18 @@ namespace Frender
     private:
         GLFWwindow* window;
         Renderer* renderer;
+
+        std::unordered_map<int, bool> keys_down;
+        std::unordered_map<int, bool> just_pressed;
+        std::unordered_map<int, bool> just_released;
+
+        std::unordered_map<int, bool> button_down;
+        std::unordered_map<int, bool> button_just_pressed;
+        std::unordered_map<int, bool> button_just_released;
+
+        glm::vec2 last_mouse_pos = glm::vec2(0, 0);
+        glm::vec2 mouse_offset = glm::vec2(0, 0);
+        MouseMode mmode = Regular;
     };
 
     struct Material
@@ -215,19 +257,28 @@ namespace Frender
         glm::mat4 model;
     };
 
+    template <typename CpuT, typename GpuT>
     struct MeshSection
     {
         MeshRef mesh;
-        GLTools::VertexArray vao;
+        GLTools::VertexArray* vao;
 
-        std::vector<ROInfo> cpu_info;
-        GLTools::Buffer<ROInfoGPU>* gpu_buffer; // Buffer must be ptr because vector can re-allocate
+        std::vector<CpuT> cpu_info;
+        GLTools::Buffer<GpuT>* gpu_buffer; // Buffer must be ptr because vector can re-allocate
     };
 
+    template <typename MeshT>
     struct MatSection
     {
         MaterialRef mat;
-        std::vector<MeshSection> meshes;
+        std::vector<MeshT> meshes;
+    };
+
+    template <typename MatT>
+    class ShaderSection
+    {
+        GLTools::Shader shader;
+        std::vector<MatT> mats;
     };
 
     class Renderer
@@ -298,7 +349,7 @@ namespace Frender
 
         /// How to scale the resolutions of the bloom passes
         /// Set to 0 for no bloom
-        float bloom_res_scale = 0;
+        float bloom_res_scale = 1;
         /// How many passes of blur should be applied to the bloom
         float bloom_blur_amount = 5;
         /// How bright the bloom is
@@ -379,7 +430,7 @@ namespace Frender
         │┼┼┼┼┼┼┼┼┼┼┼┼┼┼┼┼┼┼┼┼┼┼┼┼────────────────────┼┼──────────────┤
         └────────────────────────────────────────────────────────────┘
         */
-        std::vector<MatSection> scene_tree;
+        std::vector<MatSection<MeshSection<ROInfo, ROInfoGPU>>> scene_tree;
 
         // Pools of lights
         std::vector<PointLight> point_lights;

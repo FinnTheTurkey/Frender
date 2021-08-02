@@ -23,6 +23,46 @@ void framebuffer_size_callback(GLFWwindow* window, int width, int height)
     window_windows[window]->_sizeCallback(width, height);
 }
 
+void key_callback(GLFWwindow* window, int key, int scancode, int action, int mods)
+{
+    if (action == GLFW_PRESS)
+    {
+        window_windows[window]->_keyPressCallback(key, true);
+    }
+    else if (action == GLFW_RELEASE)
+    {
+        window_windows[window]->_keyPressCallback(key, false);
+    }
+}
+
+void button_callback(GLFWwindow* window, int key, int action, int mods)
+{
+    if (action == GLFW_PRESS)
+    {
+        window_windows[window]->_buttonPressCallback(key, true);
+    }
+    else if (action == GLFW_RELEASE)
+    {
+        window_windows[window]->_buttonPressCallback(key, false);
+    }
+}
+
+void cursor_enter_callback(GLFWwindow* window, int entered)
+{
+    // if (entered)
+    // {
+    //     // The cursor entered the content area of the window
+    //     // Set the cursor mode back to what it was before
+    //     window_windows[window]->_resetCursorMode();
+    // }
+    // else
+    // {
+    //     // The cursor left the content area of the window
+    //     // ALWAYS set the cursor back to regular
+    //     glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
+    // }
+}
+
 Frender::Window::Window(Frender::WindowSettings settings)
 {
     renderer = nullptr;
@@ -63,6 +103,11 @@ Frender::Window::Window(Frender::WindowSettings settings)
     glfwGetFramebufferSize(window, &settings.width, &settings.height);
     glfwSetFramebufferSizeCallback(window, framebuffer_size_callback);
     glViewport(0, 0, settings.width, settings.height);
+
+    // Input stuff
+    glfwSetKeyCallback(window, key_callback);
+    glfwSetMouseButtonCallback(window, button_callback);
+    glfwSetCursorEnterCallback(window, cursor_enter_callback);
 }
 
 void Frender::Window::_sizeCallback(int width, int height)
@@ -72,6 +117,119 @@ void Frender::Window::_sizeCallback(int width, int height)
         // TODO: Allow this to be manually overridden
         renderer->setRenderResolution(width, height);
     }
+}
+
+void Frender::Window::_keyPressCallback(int key, bool state)
+{
+    if (state)
+    {
+        // Key pressed
+        keys_down[key] = true;
+        just_pressed[key] = true;
+
+        std::cout << "Key pressed\n";
+    }
+    else
+    {
+        // Key released
+        keys_down[key] = false;
+        just_released[key] = true;
+        std::cout << "Key released\n";
+    }
+}
+
+bool Frender::Window::isKeyDown(int key)
+{
+    if (keys_down.find(key) == keys_down.end())
+    {
+        // Never been pressed
+        return false;
+    }
+
+    return keys_down[key];
+}
+
+bool Frender::Window::isKeyJustPressed(int key)
+{
+    return just_pressed.find(key) != just_pressed.end();
+}
+
+bool Frender::Window::isKeyJustReleased(int key)
+{
+    return just_released.find(key) != just_released.end();
+}
+
+void Frender::Window::_buttonPressCallback(int key, bool state)
+{
+    if (state)
+    {
+        // Key pressed
+        keys_down[key] = true;
+        just_pressed[key] = true;
+    }
+    else
+    {
+        // Key released
+        keys_down[key] = false;
+        just_released[key] = true;
+    }
+}
+
+bool Frender::Window::isMouseButtonDown(int key)
+{
+    if (button_down.find(key) == button_down.end())
+    {
+        // Never been pressed
+        return false;
+    }
+
+    return button_down[key];
+}
+
+bool Frender::Window::isMouseButtonJustPressed(int key)
+{
+    return button_just_pressed.find(key) != button_just_pressed.end();
+}
+
+bool Frender::Window::isMouseButtonJustReleased(int key)
+{
+    return button_just_released.find(key) != button_just_released.end();
+}
+
+glm::vec2 Frender::Window::getMousePosition()
+{
+    double xpos, ypos;
+    glfwGetCursorPos(window, &xpos, &ypos);
+    return {xpos, ypos};
+}
+
+glm::vec2 Frender::Window::getMouseOffset()
+{
+    return mouse_offset;
+}
+
+void Frender::Window::setMouseMode(MouseMode mode)
+{
+    switch (mode)
+    {
+    case (Regular):
+    {
+        glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
+        break;
+    }
+    case (Captured):
+    {
+        glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+        break;
+    }
+    }
+
+    mmode = mode;
+}
+
+void Frender::Window::_resetCursorMode()
+{
+    setMouseMode(mmode);
 }
 
 void showFPS(GLFWwindow* window)
@@ -130,6 +288,13 @@ void Frender::Window::mainloop(Renderer* render, std::function<void(float)> fn)
         // }
 
         glfwSwapBuffers(window);
+
+        // Reset just_pressed and just_released
+        just_pressed = {};
+        just_released = {};
+
+        mouse_offset = last_mouse_pos - getMousePosition();
+        last_mouse_pos = getMousePosition();
     }
 }
 
