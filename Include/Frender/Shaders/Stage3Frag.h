@@ -9,7 +9,6 @@ uniform sampler2D bloom_blur;\n\
 \n\
 uniform float bloom_exposure;\n\
 \n\
-\n\
 void main()\n\
 {\n\
     vec3 color = texture(frame, tex_coords).rgb;\n\

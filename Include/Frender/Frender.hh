@@ -134,21 +134,43 @@ namespace Frender
         uint32_t mesh_index;
     };
 
+    enum RenderObjectTypes
+    {
+        Lit,
+        Unlit,
+        ForwardLit,
+        Transparent
+    };
+
+    /**
+    Simple struct with all the info required to re-create a renderobject
+    */
+    struct RenderObjectTraits
+    {
+        RenderObjectTypes type;
+        GLTools::Shader shader;
+        uint32_t material;
+        MeshRef mesh;
+        glm::mat4 transform;
+    };
+
     class RenderObjectRef
     {
     public:
         RenderObjectRef():renderer(nullptr) {};
-        RenderObjectRef(int mat_section, int mesh_section, uint32_t* index, Renderer* renderer)
-        :mat_section(mat_section), mesh_section(mesh_section), index(index), renderer(renderer) {}
+        RenderObjectRef(RenderObjectTypes type, int shader_section, int mat_section, int mesh_section, int index, Renderer* renderer)
+        :type(type), shader_section(shader_section), mat_section(mat_section), mesh_section(mesh_section), index(index), renderer(renderer) {}
         
         glm::mat4 getTransform();
         void setTransform(glm::mat4 t);
 
         RenderObjectRef duplicate();
 
+        RenderObjectTypes type;
+        int shader_section;
         int mat_section;
         int mesh_section;
-        uint32_t* index;
+        int index;
         Renderer* renderer;
 
     private:
@@ -246,7 +268,7 @@ namespace Frender
 
     struct ROInfo
     {
-        uint32_t* index;
+        int index;
         glm::mat4 model;
         BoundingBox bounding_box;
     };
@@ -275,7 +297,7 @@ namespace Frender
     };
 
     template <typename MatT>
-    class ShaderSection
+    struct ShaderSection
     {
         GLTools::Shader shader;
         std::vector<MatT> mats;
@@ -296,6 +318,12 @@ namespace Frender
         */
         uint32_t createMaterial();
         uint32_t createMaterial(GLTools::Shader shader);
+
+        /**
+        Creates a material that is not effected by lighting.
+        If bloom is enabled, supports emmisive materials
+        */
+        uint32_t createUnlitMaterial(float emmisive = 0);
 
         /**
         Gets the material as a pointer
@@ -321,9 +349,20 @@ namespace Frender
         RenderObjectRef createRenderObject(MeshRef mesh, uint32_t mat, glm::mat4 transform);
 
         /**
+        Creates a RenderObject that doesn't require lighting.
+        This function requires a shader to render the unlit object with
+        */
+        RenderObjectRef createUnlitRenderObject(GLTools::Shader shader, MeshRef mesh, uint32_t mat, glm::mat4 transform);
+
+        /**
         Duplicates a given render object
         */
         RenderObjectRef duplicateRenderObject(RenderObjectRef ro);
+
+        /**
+        Gets info about a renderobject
+        */
+        RenderObjectTraits getRenderObjectTraits(RenderObjectRef ro);
 
         void setCamera(const glm::mat4& matrix);
 
@@ -354,15 +393,29 @@ namespace Frender
         float bloom_blur_amount = 5;
         /// How bright the bloom is
         float bloom_exposure = 1;
+        bool use_fxaa = false;
 
         // Stats
         uint64_t frame_count;
         double frame_rate;
         double frame_time;
 
-        ROInfo* _getRenderObject(int mat_section, int mesh_section, uint32_t* index)
+        ROInfo* _getRenderObject(RenderObjectTypes type, int shader_section, int mat_section, int mesh_section, int index)
         {
-            return &scene_tree[mat_section].meshes[mesh_section].cpu_info[*(index)];
+            switch (type)
+            {
+                case (Lit):
+                {
+                    return &scene_tree[mat_section].meshes[mesh_section].cpu_info[index];
+                }
+                case (Unlit):
+                {
+                    return &funlit_scene_tree[shader_section].mats[mat_section].meshes[mesh_section].cpu_info[index];
+                }
+                default: break;
+            }
+
+            return nullptr;
         }
 
     private:
@@ -375,9 +428,14 @@ namespace Frender
         GLTools::Shader stage2_dlight_shader;
         _LightUniforms dlight_uniforms;
 
+        // Forward rendered shaders
+        GLTools::Shader unlit;
+
         // Shaders used to show the final result - post processing goes here
         GLTools::Shader stage3_shader;
+        GLTools::Shader stage3fxaa_shader;
         uint32_t bloom_exposure_loc;
+        uint32_t bloom_exposure_loc_fxaa;
         GLTools::Shader bloom_shader;
         uint32_t bloom_horizontal_loc;
 
@@ -432,6 +490,8 @@ namespace Frender
         */
         std::vector<MatSection<MeshSection<ROInfo, ROInfoGPU>>> scene_tree;
 
+        std::vector<ShaderSection<MatSection<MeshSection<ROInfo, ROInfoGPU>>>> funlit_scene_tree;
+
         // Pools of lights
         std::vector<PointLight> point_lights;
         std::vector<DirectionLight> directional_lights;
@@ -454,6 +514,8 @@ namespace Frender
 
         // Functions
         void bulkRender();
+        void geometryPass(glm::mat4 vp);
+        void unlitRender(glm::mat4 vp);
         bool frustumCull(glm::vec3 min, glm::vec3 max);
         void processBloom();
     };

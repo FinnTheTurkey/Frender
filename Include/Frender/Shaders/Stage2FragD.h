@@ -142,7 +142,7 @@ void main()\n\
     vec3 F0 = vec3(0.4);\n\
     F0 = mix(F0, color.xyz, metal);\n\
 \n\
-    vec3 end_result = (color * 0.01) + reflectanceEquation(normal, V, F0, color.xyz,\n\
+    vec3 end_result = reflectanceEquation(normal, V, F0, color.xyz,\n\
                 light_direction,\n\
                 light_color, roughness, metal);\n\
 \n\

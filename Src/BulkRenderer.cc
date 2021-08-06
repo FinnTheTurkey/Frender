@@ -33,50 +33,8 @@ void Frender::Renderer::bulkRender()
     for (int i = 4; i--; ) frustum_planes[5][i]    = fcvp[i][3] - fcvp[i][2];
 
     stage1_bulk_shader.enable();
-    for (auto mat : scene_tree)
-    {
-        mat.mat.uniforms.enable();
-        getMaterial(mat.mat.mat_ref)->textures.enable();
-
-        for (auto mesh : mat.meshes)
-        {
-            // Update transforms
-            int to_draw = 0;
-            int max = mesh.gpu_buffer->size()-1;
-            for (auto ro : mesh.cpu_info)
-            {
-                // Frustum culling
-                // ro.bounding_box.transformBoundingBox(ro.model);
-
-                // TODO: Fix frustum culling
-                // if (!frustumCull(ro.bounding_box.min_pos, ro.bounding_box.max_pos))
-                if (false)
-                {
-                    // No point is in the view frustum, so we can safely cull
-                    // Add to the end of the buffer
-                    mesh.gpu_buffer->set(max, {glm::mat4(), ro.model});
-                    max --;
-                }
-                else
-                {
-                    // We do have to draw it
-                    auto mvp = vp * ro.model;
-                    mesh.gpu_buffer->set(to_draw, {mvp, ro.model});
-                    to_draw++;
-                }
-            }
-
-            if (to_draw > 0)
-            {
-                // Upload to GPU
-                mesh.gpu_buffer->apply();
-
-                // Render
-                mesh.vao->enable();
-                mesh.vao->draw(to_draw); // Only render elements added to the front
-            }
-        }
-    }
+    
+    geometryPass(vp);
 
     // stage2_fbo.disable();
 
@@ -89,6 +47,11 @@ void Frender::Renderer::bulkRender()
     // glClearColor(0.2f, 0.3f, 0.3f, 1.0f);
     glClearColor(0, 0, 0, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT); // | GL_DEPTH_BUFFER_BIT);
+
+    // Render unlit objects
+    unlitRender(vp);
+
+    // Disable writing to the depth buffer
     glDepthMask(GL_FALSE);
     
     // glDisable(GL_CULL_FACE);
@@ -187,16 +150,123 @@ void Frender::Renderer::bulkRender()
     }
 
     // Stage 3: Post-processing and HUD elements
-    stage3_shader.enable();
+    if (use_fxaa)
+    {
+        stage3fxaa_shader.enable();
+    }
+    else
+    {
+        stage3_shader.enable();
+    }
     GLERRORCHECK();
     stage3_tex.enable();
     GLERRORCHECK();
     
     // Set bloom parameters
-    stage3_shader.setUniform(bloom_exposure_loc, bloom_blur_amount == 0 ? 0 : bloom_exposure);
+    stage3_shader.setUniform(use_fxaa ? bloom_exposure_loc_fxaa : bloom_exposure_loc, bloom_blur_amount == 0 ? 0 : bloom_exposure);
 
     glDrawElements(GL_TRIANGLES, plane.num_indices, GL_UNSIGNED_INT, 0);
     GLERRORCHECK();
+}
+
+void Frender::Renderer::geometryPass(glm::mat4 vp)
+{
+    for (auto mat : scene_tree)
+    {
+        mat.mat.uniforms.enable();
+        getMaterial(mat.mat.mat_ref)->textures.enable();
+
+        for (auto mesh : mat.meshes)
+        {
+            // Update transforms
+            int to_draw = 0;
+            int max = mesh.gpu_buffer->size()-1;
+            for (auto ro : mesh.cpu_info)
+            {
+                // Frustum culling
+                // ro.bounding_box.transformBoundingBox(ro.model);
+
+                // TODO: Fix frustum culling
+                // if (!frustumCull(ro.bounding_box.min_pos, ro.bounding_box.max_pos))
+                if (false)
+                {
+                    // No point is in the view frustum, so we can safely cull
+                    // Add to the end of the buffer
+                    mesh.gpu_buffer->set(max, {glm::mat4(), ro.model});
+                    max --;
+                }
+                else
+                {
+                    // We do have to draw it
+                    auto mvp = vp * ro.model;
+                    mesh.gpu_buffer->set(to_draw, {mvp, ro.model});
+                    to_draw++;
+                }
+            }
+
+            if (to_draw > 0)
+            {
+                // Upload to GPU
+                mesh.gpu_buffer->apply();
+
+                // Render
+                mesh.vao->enable();
+                mesh.vao->draw(to_draw); // Only render elements added to the front
+            }
+        }
+    }
+}
+
+void Frender::Renderer::unlitRender(glm::mat4 vp)
+{
+    for (auto shdr : funlit_scene_tree)
+    {
+        shdr.shader.enable();
+        for (auto mat : shdr.mats)
+        {
+            mat.mat.uniforms.enable();
+            getMaterial(mat.mat.mat_ref)->textures.enable();
+
+            for (auto mesh : mat.meshes)
+            {
+                // Update transforms
+                int to_draw = 0;
+                int max = mesh.gpu_buffer->size()-1;
+                for (auto ro : mesh.cpu_info)
+                {
+                    // Frustum culling
+                    // ro.bounding_box.transformBoundingBox(ro.model);
+
+                    // TODO: Fix frustum culling
+                    // if (!frustumCull(ro.bounding_box.min_pos, ro.bounding_box.max_pos))
+                    if (false)
+                    {
+                        // No point is in the view frustum, so we can safely cull
+                        // Add to the end of the buffer
+                        mesh.gpu_buffer->set(max, {glm::mat4(), ro.model});
+                        max --;
+                    }
+                    else
+                    {
+                        // We do have to draw it
+                        auto mvp = vp * ro.model;
+                        mesh.gpu_buffer->set(to_draw, {mvp, ro.model});
+                        to_draw++;
+                    }
+                }
+
+                if (to_draw > 0)
+                {
+                    // Upload to GPU
+                    mesh.gpu_buffer->apply();
+
+                    // Render
+                    mesh.vao->enable();
+                    mesh.vao->draw(to_draw); // Only render elements added to the front
+                }
+            }
+        }
+    }
 }
 
 bool Frender::Renderer::frustumCull(glm::vec3 min, glm::vec3 max)

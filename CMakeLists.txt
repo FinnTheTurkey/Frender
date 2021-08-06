@@ -20,7 +20,8 @@ function(embed_resource resource_file_name source_file_name variable_name)
 
     file(READ ${resource_file_name} text_content)
 
-    string(REPLACE "\n" "\\n\\\n" content "${text_content}")
+    string(REPLACE "\"" "\\\"" content "${text_content}")
+    string(REPLACE "\n" "\\n\\\n" content "${content}")
 
     set(array_definition "static const char ${variable_name}[] = \"${content}\";")
 
@@ -39,7 +40,11 @@ embed_resource("Shaders/stage2directionallight.frag" "Include/Frender/Shaders/St
 
 embed_resource("Shaders/stage3.vert" "Include/Frender/Shaders/Stage3Vert.h" "Stage3VertSrc")
 embed_resource("Shaders/stage3.frag" "Include/Frender/Shaders/Stage3Frag.h" "Stage3FragSrc")
+embed_resource("Shaders/stage3fxaa.frag" "Include/Frender/Shaders/Stage3FxaaFrag.h" "Stage3FxaaFragSrc")
 embed_resource("Shaders/stage3bloom.frag" "Include/Frender/Shaders/BloomFrag.h" "BloomFragSrc")
+
+embed_resource("Shaders/unlit.vert" "Include/Frender/Shaders/UnlitVert.h" "UnlitVertSrc")
+embed_resource("Shaders/unlit.frag" "Include/Frender/Shaders/UnlitFrag.h" "UnlitFragSrc")
 
 add_library(Frender 
     Src/Window.cc

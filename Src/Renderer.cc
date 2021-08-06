@@ -9,11 +9,14 @@
 // Shaders embedded in C Source
 #include "Frender/Shaders/Stage1Vert.h"
 #include "Frender/Shaders/Stage1Frag.h"
+#include "Frender/Shaders/UnlitVert.h"
+#include "Frender/Shaders/UnlitFrag.h"
 #include "Frender/Shaders/Stage2Vert.h"
 #include "Frender/Shaders/Stage2Frag.h"
 #include "Frender/Shaders/Stage2FragD.h"
 #include "Frender/Shaders/Stage3Vert.h"
 #include "Frender/Shaders/Stage3Frag.h"
+#include "Frender/Shaders/Stage3FxaaFrag.h"
 #include "Frender/Shaders/BloomFrag.h"
 #include "Frender/Shaders/Sphere.h"
 
@@ -25,6 +28,10 @@ Frender::Renderer::Renderer(int width, int height)
 
     bloom_shader = GLTools::Shader(Stage3VertSrc, BloomFragSrc);
     bloom_horizontal_loc = bloom_shader.getUniformLocation("horizontal");
+
+    stage3fxaa_shader = GLTools::Shader(Stage3VertSrc, Stage3FxaaFragSrc);
+    bloom_exposure_loc_fxaa = stage3_shader.getUniformLocation("bloom_exposure");
+
     GLERRORCHECK();
 
     // Create stage2 shaders
@@ -42,6 +49,9 @@ Frender::Renderer::Renderer(int width, int height)
     dlight_uniforms.color = stage2_dlight_shader.getUniformLocation("light_color");
     dlight_uniforms.cam_pos = stage2_dlight_shader.getUniformLocation("cam_pos");
     dlight_uniforms.light_pos = stage2_dlight_shader.getUniformLocation("light_direction");
+
+    // Create forward shaders
+    unlit = GLTools::Shader(UnlitVertSrc, UnlitFragSrc);
 
     setRenderResolution(width, height);
     GLERRORCHECK();
@@ -268,6 +278,23 @@ uint32_t Frender::Renderer::createMaterial(GLTools::Shader shader)
     return materials.size()-1;
 }
 
+uint32_t Frender::Renderer::createUnlitMaterial(float emmisive)
+{
+    Material mat;
+
+    mat.shader = unlit;
+    mat.type = Detail;
+    mat.uniforms = GLTools::UniformBuffer(unlit, "Material", {
+        {"color", GLTools::Vec3, glm::vec3(1, 0, 0)},
+        {"emmisive", GLTools::Float, emmisive},
+        {"has_diffuse_map", GLTools::Int, 0},
+    });
+    mat.textures = GLTools::TextureManager(unlit);
+    materials.push_back(mat);
+
+    return materials.size()-1;
+}
+
 Frender::Material* Frender::Renderer::getMaterial(uint32_t material)
 {
     return &materials[material];
@@ -344,6 +371,12 @@ Frender::RenderObjectRef Frender::Renderer::createRenderObject(MeshRef mesh, uin
 {
     auto m = getMaterial(mat);
 
+    if (m->shader.program != stage1_bulk_shader.program)
+    {
+        // Use unlit pipeline
+        return createUnlitRenderObject(m->shader, mesh, mat, transform);
+    }
+
     // Find the correct section, of create if it doesn't exist
     int mat_section_index = -1;
     int c = 0;
@@ -417,16 +450,145 @@ Frender::RenderObjectRef Frender::Renderer::createRenderObject(MeshRef mesh, uin
     MeshSection<ROInfo, ROInfoGPU>* mes = &ms->meshes[mesh_section_index];
 
     // Add actual data to CPU and GPU
-    uint32_t* index = new uint32_t(mes->cpu_info.size());
+    int index = mes->cpu_info.size();
     mes->cpu_info.push_back({index, transform});
     mes->gpu_buffer->pushBack({transform, transform});
 
-    return {mat_section_index, mesh_section_index, index, this};
+    return {Lit, 0, mat_section_index, mesh_section_index, index, this};
+}
+
+Frender::RenderObjectRef Frender::Renderer::createUnlitRenderObject(GLTools::Shader shader, MeshRef mesh, uint32_t mat, glm::mat4 transform)
+{
+    // Find the correct shader section, and create if it doesn't exist
+    int shader_section_index = -1;
+    int c = 0;
+    for (auto i : funlit_scene_tree)
+    {
+        if (i.shader.program == shader.program)
+        {
+            shader_section_index = c;
+        }
+        c++;
+    }
+
+    if (shader_section_index == -1)
+    {
+        funlit_scene_tree.push_back({shader, {}});
+        shader_section_index = funlit_scene_tree.size() - 1;
+    }
+
+    auto m = getMaterial(mat);
+
+    // Find the correct section, or create if it doesn't exist
+    int mat_section_index = -1;
+    c = 0;
+    for (auto i : funlit_scene_tree[shader_section_index].mats)
+    {
+        if (i.mat.mat_ref == mat)
+        {
+            mat_section_index = c;
+        }
+        c++;
+    }
+
+    if (mat_section_index == -1)
+    {
+        // Add a new mat section
+        funlit_scene_tree[shader_section_index].mats.push_back(MatSection<MeshSection<ROInfo, ROInfoGPU>> {{mat, m->uniforms.getRef(), m->shader}, {}});
+        mat_section_index = funlit_scene_tree[shader_section_index].mats.size() - 1;
+    }
+
+    MatSection<MeshSection<ROInfo, ROInfoGPU>>* ms = &funlit_scene_tree[shader_section_index].mats[mat_section_index];
+
+    // Find Mesh Section
+    int mesh_section_index = -1;
+    c = 0;
+    for (auto i : ms->meshes)
+    {
+        if (i.mesh == mesh)
+        {
+            mesh_section_index = c;
+        }
+        c++;
+    }
+
+    if (mesh_section_index == -1)
+    {
+        // Add a new mesh section
+        // We have to create some OpenGL Objects for this one
+
+        // Create buffer for renderobjects
+        GLTools::Buffer<ROInfoGPU>* gpu_buffer = new GLTools::Buffer<ROInfoGPU>(GLTools::Dynamic, {
+            // Matrix has to be 4 values
+            {sizeof(glm::vec4), 4},
+            {sizeof(glm::vec4), 4},
+            {sizeof(glm::vec4), 4},
+            {sizeof(glm::vec4), 4},
+
+            // Matrix has to be 4 values
+            {sizeof(glm::vec4), 4},
+            {sizeof(glm::vec4), 4},
+            {sizeof(glm::vec4), 4},
+            {sizeof(glm::vec4), 4}
+        }, {});
+
+        auto v = new GLTools::VertexArray();
+        ms->meshes.push_back(MeshSection<ROInfo, ROInfoGPU> {mesh, v, {}, gpu_buffer});
+        int index = ms->meshes.size() - 1;
+
+        GLERRORCHECK();
+        ms->meshes[index].vao->addBuffer(meshes[mesh]);
+        GLERRORCHECK();
+        ms->meshes[index].vao->addBuffer(gpu_buffer);
+        GLERRORCHECK();
+        ms->meshes[index].vao->addIndices(indices[mesh].second, indices[mesh].first);
+        GLERRORCHECK();
+        ms->meshes[index].vao->bind();
+        GLERRORCHECK();
+        
+        mesh_section_index = ms->meshes.size() - 1;
+    }
+
+    MeshSection<ROInfo, ROInfoGPU>* mes = &ms->meshes[mesh_section_index];
+
+    // Add actual data to CPU and GPU
+    int index = mes->cpu_info.size();
+    mes->cpu_info.push_back({index, transform});
+    mes->gpu_buffer->pushBack({transform, transform});
+
+    return {Unlit, shader_section_index, mat_section_index, mesh_section_index, index, this};
 }
 
 Frender::RenderObjectRef Frender::Renderer::duplicateRenderObject(RenderObjectRef ro)
 {
-    return createRenderObject(scene_tree[ro.mat_section].meshes[ro.mesh_section].mesh, scene_tree[ro.mat_section].mat.mat_ref, scene_tree[ro.mat_section].meshes[ro.mesh_section].cpu_info[*ro.index].model);
+    if (ro.type == Lit)
+    {
+        return createRenderObject(scene_tree[ro.mat_section].meshes[ro.mesh_section].mesh, scene_tree[ro.mat_section].mat.mat_ref, scene_tree[ro.mat_section].meshes[ro.mesh_section].cpu_info[ro.index].model);
+    }
+    else
+    {
+        return createUnlitRenderObject(funlit_scene_tree[ro.shader_section].shader, funlit_scene_tree[ro.shader_section].mats[ro.mat_section].meshes[ro.mesh_section].mesh,
+            funlit_scene_tree[ro.shader_section].mats[ro.mat_section].mat.mat_ref, funlit_scene_tree[ro.shader_section].mats[ro.mat_section].meshes[ro.mesh_section].cpu_info[ro.index].model);
+    }
+}
+
+Frender::RenderObjectTraits Frender::Renderer::getRenderObjectTraits(RenderObjectRef ro)
+{
+    if (ro.type == Lit)
+    {
+        return {ro.type,
+            stage1_bulk_shader, scene_tree[ro.mat_section].mat.mat_ref,
+            scene_tree[ro.mat_section].meshes[ro.mesh_section].mesh,
+            scene_tree[ro.mat_section].meshes[ro.mesh_section].cpu_info[ro.index].model};
+    }
+    else
+    {
+        return {ro.type,
+            funlit_scene_tree[ro.shader_section].shader,
+            funlit_scene_tree[ro.shader_section].mats[ro.mat_section].mat.mat_ref,
+            funlit_scene_tree[ro.shader_section].mats[ro.mat_section].meshes[ro.mesh_section].mesh,
+            funlit_scene_tree[ro.shader_section].mats[ro.mat_section].meshes[ro.mesh_section].cpu_info[ro.index].model};
+    }
 }
 
 uint32_t Frender::Renderer::createPointLight(glm::vec3 position, glm::vec3 color, float radius)
@@ -450,12 +612,12 @@ uint32_t Frender::Renderer::createDirectionalLight(glm::vec3 color, glm::vec3 di
 
 glm::mat4 Frender::RenderObjectRef::getTransform()
 {
-    return renderer->_getRenderObject(mat_section, mesh_section, index)->model;
+    return renderer->_getRenderObject(type, shader_section, mat_section, mesh_section, index)->model;
 }
 
 void Frender::RenderObjectRef::setTransform(glm::mat4 t)
 {
-    renderer->_getRenderObject(mat_section, mesh_section, index)->model = t;
+    renderer->_getRenderObject(type, shader_section, mat_section, mesh_section, index)->model = t;
 }
 
 Frender::RenderObjectRef Frender::RenderObjectRef::duplicate()
