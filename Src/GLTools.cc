@@ -305,12 +305,12 @@ void Frender::GLTools::Shader::setUniform(uint32_t loc, glm::vec3 value)
 // Uniform Buffer
 // ====================================================================
 
-Frender::GLTools::UniformBuffer::UniformBuffer(Shader shader, std::string ub_name, std::vector<UniformRow> values_info)
+Frender::GLTools::UniformBuffer::UniformBuffer(Shader shader, std::string ub_name, std::vector<UniformRow> values_info, int loc)
 {
     uint32_t index = glGetUniformBlockIndex(shader.program, ub_name.c_str());
 
-    // Tell OpenGL that the UBO at binding point 0 is ub_name
-    glUniformBlockBinding(shader.program, index, 0);
+    // Tell OpenGL that the UBO at binding point loc is ub_name
+    glUniformBlockBinding(shader.program, index, loc);
 
     // Get size of ubo
     int block_size;
@@ -351,6 +351,7 @@ Frender::GLTools::UniformBuffer::UniformBuffer(Shader shader, std::string ub_nam
             (values_info[t].type == Vec2 && types_from_gl[t] != GL_FLOAT_VEC2) ||
             (values_info[t].type == Vec3 && types_from_gl[t] != GL_FLOAT_VEC3) ||
             (values_info[t].type == Vec4 && types_from_gl[t] != GL_FLOAT_VEC4) ||
+            (values_info[t].type == Vec4Array && types_from_gl[t] != GL_FLOAT_VEC4) ||
             (values_info[t].type == Mat4 && types_from_gl[t] != GL_FLOAT_MAT4))
         {
             // Type mismatch!
@@ -420,6 +421,10 @@ void Frender::GLTools::UniformBuffer::setBufferValue(const _UniformRow& row)
             glBufferSubData(GL_UNIFORM_BUFFER, row.offset, sizeof(float) * 16, glm::value_ptr(std::get<glm::mat4>(row.value)));
             break;
         }
+        case (Vec4Array):
+        {
+            glBufferSubData(GL_UNIFORM_BUFFER, row.offset, sizeof(float) * 4 * FRENDER_MAX_UNIFORM_ARRAY, &std::get<std::array<glm::vec4, FRENDER_MAX_UNIFORM_ARRAY>>(row.value)[0]);
+        }
     }
 }
 
@@ -438,16 +443,36 @@ void Frender::GLTools::UniformBuffer::set(const std::string &name, UniformType v
     }
 }
 
-void Frender::GLTools::UniformBuffer::enable()
+void Frender::GLTools::UniformBuffer::setArray(const std::string &name, int index, glm::vec4 value)
 {
-    glBindBuffer(GL_UNIFORM_BUFFER, handle);
-    glBindBufferBase(GL_UNIFORM_BUFFER, 0, handle);
+    // Horribly inefficient
+    int e = 0;
+    for (auto i : data)
+    {
+        if (i.name == name)
+        {
+            auto v = std::get<std::array<glm::vec4, FRENDER_MAX_UNIFORM_ARRAY>>(i.value);
+            v[index] = value;
+            i.value = v;
+            data[e] = i;
+
+            glBindBuffer(GL_UNIFORM_BUFFER, handle);
+            setBufferValue(i);
+        }
+        e++;
+    }
 }
 
-void Frender::GLTools::UniformRef::enable()
+void Frender::GLTools::UniformBuffer::enable(int loc)
 {
     glBindBuffer(GL_UNIFORM_BUFFER, handle);
-    glBindBufferBase(GL_UNIFORM_BUFFER, 0, handle);
+    glBindBufferBase(GL_UNIFORM_BUFFER, loc, handle);
+}
+
+void Frender::GLTools::UniformRef::enable(int loc)
+{
+    glBindBuffer(GL_UNIFORM_BUFFER, handle);
+    glBindBufferBase(GL_UNIFORM_BUFFER, loc, handle);
 }
 
 void Frender::GLTools::UniformBuffer::destroy()

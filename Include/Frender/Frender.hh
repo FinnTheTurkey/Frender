@@ -183,12 +183,14 @@ namespace Frender
         glm::vec3 position;
         float radius;
         glm::mat4 transform;
+        int light_id;
     };
 
     struct DirectionLight
     {
         glm::vec3 color;
         glm::vec3 direction;
+        int light_id;
     };
 
     struct _LightUniforms
@@ -279,6 +281,22 @@ namespace Frender
         glm::mat4 model;
     };
 
+    struct ROInfoLit : public ROInfo
+    {
+        std::array<int32_t, 8> lights;
+        std::array<int32_t, 8> complete_lights;
+        glm::vec3 minima_indexes;
+        glm::vec3 maxima_indexes;
+    };
+
+    struct ROInfoGPULit
+    {
+        glm::mat4 mvp;
+        glm::mat4 model;
+        glm::vec4 lights1;
+        glm::vec4 lights2;
+    };
+
     template <typename CpuT, typename GpuT>
     struct MeshSection
     {
@@ -301,6 +319,30 @@ namespace Frender
     {
         GLTools::Shader shader;
         std::vector<MatT> mats;
+    };
+
+    struct Extrema
+    {
+        enum ExtremaType
+        {
+            Minima, Maxima
+        };
+        enum ObjectType
+        {
+            Light, Object
+        };
+
+        ExtremaType et;
+        ObjectType obj;
+
+        glm::vec3 position;
+
+        int light;
+
+        int shader_section;
+        int mat_section;
+        int mesh_section;
+        int index;
     };
 
     class Renderer
@@ -347,6 +389,15 @@ namespace Frender
         This thing will appear when the scene is rendered
         */
         RenderObjectRef createRenderObject(MeshRef mesh, uint32_t mat, glm::mat4 transform);
+
+        /**
+        Creates a forward rendered lit render object
+        */
+        RenderObjectRef createLitRenderObject(GLTools::Shader shader, MeshRef mesh, uint32_t mat, glm::mat4 transform);
+        RenderObjectRef createLitRenderObject(MeshRef mesh, uint32_t mat, glm::mat4 transform)
+        {
+            return createLitRenderObject(lit_shader, mesh, mat, transform);
+        };
 
         /**
         Creates a RenderObject that doesn't require lighting.
@@ -406,7 +457,7 @@ namespace Frender
             {
                 case (Lit):
                 {
-                    return &scene_tree[mat_section].meshes[mesh_section].cpu_info[index];
+                    return &scene_tree[shader_section].mats[mat_section].meshes[mesh_section].cpu_info[index];
                 }
                 case (Unlit):
                 {
@@ -427,6 +478,9 @@ namespace Frender
         _LightUniforms light_uniforms;
         GLTools::Shader stage2_dlight_shader;
         _LightUniforms dlight_uniforms;
+
+        GLTools::Shader lit_shader;
+        _LightUniforms lit_uniforms;
 
         // Forward rendered shaders
         GLTools::Shader unlit;
@@ -488,13 +542,23 @@ namespace Frender
         │┼┼┼┼┼┼┼┼┼┼┼┼┼┼┼┼┼┼┼┼┼┼┼┼────────────────────┼┼──────────────┤
         └────────────────────────────────────────────────────────────┘
         */
-        std::vector<MatSection<MeshSection<ROInfo, ROInfoGPU>>> scene_tree;
+        std::vector<ShaderSection<MatSection<MeshSection<ROInfo, ROInfoGPU>>>> scene_tree;
 
         std::vector<ShaderSection<MatSection<MeshSection<ROInfo, ROInfoGPU>>>> funlit_scene_tree;
+
+        // Broad phase sweep and prune for forward lit objects
+        std::array<std::vector<Extrema>, 3> broad_phase;
+
+        // Scene tree for forward lit
+        std::vector<ShaderSection<MatSection<MeshSection<ROInfoLit, ROInfoGPULit>>>> flit_scene_tree;
+
+        glm::vec3 addExtrema(Extrema ex);
 
         // Pools of lights
         std::vector<PointLight> point_lights;
         std::vector<DirectionLight> directional_lights;
+        GLTools::UniformBuffer light_buffer;
+        int light_index; // TODO: id reuse queue
 
         // Useful info
         glm::mat4 camera;
@@ -516,8 +580,13 @@ namespace Frender
         void bulkRender();
         void geometryPass(glm::mat4 vp);
         void unlitRender(glm::mat4 vp);
+        void litRender(glm::mat4 vp);
+        void calculateLighting(glm::mat4 vp);
         bool frustumCull(glm::vec3 min, glm::vec3 max);
         void processBloom();
+
+        template <typename ROCpu, typename ROGpu>
+        Frender::RenderObjectRef _addRenderObject(std::vector<ShaderSection<MatSection<MeshSection<ROCpu, ROGpu>>>>& scene, ROCpu cpu, ROGpu gpu, GLTools::Shader shader, MeshRef mesh, uint32_t mat, glm::mat4 transform, int rows = 8);
     };
 }
 

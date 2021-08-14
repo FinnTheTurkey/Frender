@@ -1,8 +1,11 @@
 #include "Frender/Frender.hh"
+#include <algorithm>
+#include <array>
 #include <glad/glad.h>
 #include <iostream>
 
 #include "Frender/GLTools.hh"
+#include "glm/detail/type_vec.hpp"
 #include "glm/glm.hpp"
 #include <glm/gtc/matrix_transform.hpp>
 
@@ -11,6 +14,8 @@
 #include "Frender/Shaders/Stage1Frag.h"
 #include "Frender/Shaders/UnlitVert.h"
 #include "Frender/Shaders/UnlitFrag.h"
+#include "Frender/Shaders/LitVert.h"
+#include "Frender/Shaders/LitFrag.h"
 #include "Frender/Shaders/Stage2Vert.h"
 #include "Frender/Shaders/Stage2Frag.h"
 #include "Frender/Shaders/Stage2FragD.h"
@@ -21,6 +26,7 @@
 #include "Frender/Shaders/Sphere.h"
 
 Frender::Renderer::Renderer(int width, int height)
+:light_index(0)
 {
     // Create stage3 shaders
     stage3_shader = GLTools::Shader(Stage3VertSrc, Stage3FragSrc);
@@ -52,6 +58,15 @@ Frender::Renderer::Renderer(int width, int height)
 
     // Create forward shaders
     unlit = GLTools::Shader(UnlitVertSrc, UnlitFragSrc);
+
+    lit_shader = GLTools::Shader(LitVertSrc, LitFragSrc);
+    lit_uniforms.cam_pos = lit_shader.getUniformLocation("cam_pos");
+
+    // Create light buffer
+    light_buffer = GLTools::UniformBuffer(lit_shader, "Lights", {
+        {"light_pos_dir_rad", GLTools::Vec4Array, std::array<glm::vec4, FRENDER_MAX_UNIFORM_ARRAY>()},
+        {"light_color_type", GLTools::Vec4Array, std::array<glm::vec4, FRENDER_MAX_UNIFORM_ARRAY>()},
+    }, 1);
 
     setRenderResolution(width, height);
     GLERRORCHECK();
@@ -146,9 +161,6 @@ void Frender::Renderer::setCamera(const glm::mat4 &matrix)
 {
     camera = matrix;
     inv_camera = glm::inverse(matrix);
-
-    // Calculate frustum planes
-
 }
 
 void Frender::Renderer::setRenderResolution(int new_width, int new_height)
@@ -369,100 +381,45 @@ Frender::MeshRef Frender::Renderer::createMesh(const std::vector<Vertex>& vertic
 
 Frender::RenderObjectRef Frender::Renderer::createRenderObject(MeshRef mesh, uint32_t mat, glm::mat4 transform)
 {
-    auto m = getMaterial(mat);
 
-    if (m->shader.program != stage1_bulk_shader.program)
+    if (getMaterial(mat)->shader.program != stage1_bulk_shader.program)
     {
-        // Use unlit pipeline
-        return createUnlitRenderObject(m->shader, mesh, mat, transform);
+        return createUnlitRenderObject(getMaterial(mat)->shader, mesh, mat, transform);
     }
 
-    // Find the correct section, of create if it doesn't exist
-    int mat_section_index = -1;
-    int c = 0;
-    for (auto i : scene_tree)
-    {
-        if (i.mat.mat_ref == mat)
-        {
-            mat_section_index = c;
-        }
-        c++;
-    }
-
-    if (mat_section_index == -1)
-    {
-        // Add a new mat section
-        scene_tree.push_back(MatSection<MeshSection<ROInfo, ROInfoGPU>> {{mat, m->uniforms.getRef(), m->shader}, {}});
-        mat_section_index = scene_tree.size() - 1;
-    }
-
-    MatSection<MeshSection<ROInfo, ROInfoGPU>>* ms = &scene_tree[mat_section_index];
-
-    // Find Mesh Section
-    int mesh_section_index = -1;
-    c = 0;
-    for (auto i : ms->meshes)
-    {
-        if (i.mesh == mesh)
-        {
-            mesh_section_index = c;
-        }
-        c++;
-    }
-
-    if (mesh_section_index == -1)
-    {
-        // Add a new mesh section
-        // We have to create some OpenGL Objects for this one
-
-        // Create buffer for renderobjects
-        GLTools::Buffer<ROInfoGPU>* gpu_buffer = new GLTools::Buffer<ROInfoGPU>(GLTools::Dynamic, {
-            // Matrix has to be 4 values
-            {sizeof(glm::vec4), 4},
-            {sizeof(glm::vec4), 4},
-            {sizeof(glm::vec4), 4},
-            {sizeof(glm::vec4), 4},
-
-            // Matrix has to be 4 values
-            {sizeof(glm::vec4), 4},
-            {sizeof(glm::vec4), 4},
-            {sizeof(glm::vec4), 4},
-            {sizeof(glm::vec4), 4}
-        }, {});
-
-        auto v = new GLTools::VertexArray();
-        ms->meshes.push_back(MeshSection<ROInfo, ROInfoGPU> {mesh, v, {}, gpu_buffer});
-        int index = ms->meshes.size() - 1;
-
-        GLERRORCHECK();
-        ms->meshes[index].vao->addBuffer(meshes[mesh]);
-        GLERRORCHECK();
-        ms->meshes[index].vao->addBuffer(gpu_buffer);
-        GLERRORCHECK();
-        ms->meshes[index].vao->addIndices(indices[mesh].second, indices[mesh].first);
-        GLERRORCHECK();
-        ms->meshes[index].vao->bind();
-        GLERRORCHECK();
-        
-        mesh_section_index = ms->meshes.size() - 1;
-    }
-
-    MeshSection<ROInfo, ROInfoGPU>* mes = &ms->meshes[mesh_section_index];
-
-    // Add actual data to CPU and GPU
-    int index = mes->cpu_info.size();
-    mes->cpu_info.push_back({index, transform});
-    mes->gpu_buffer->pushBack({transform, transform});
-
-    return {Lit, 0, mat_section_index, mesh_section_index, index, this};
+    auto obj = _addRenderObject<ROInfo, ROInfoGPU>(scene_tree, {0, transform}, {transform, transform}, stage1_bulk_shader, mesh, mat, transform);
+    obj.type = Lit;
+    return obj;
 }
 
 Frender::RenderObjectRef Frender::Renderer::createUnlitRenderObject(GLTools::Shader shader, MeshRef mesh, uint32_t mat, glm::mat4 transform)
 {
+
+    auto obj = _addRenderObject<ROInfo, ROInfoGPU>(funlit_scene_tree, {0, transform}, {transform, transform}, shader, mesh, mat, transform);
+    obj.type = Unlit;
+    return obj;
+}
+
+Frender::RenderObjectRef Frender::Renderer::createLitRenderObject(GLTools::Shader shader, MeshRef mesh, uint32_t mat, glm::mat4 transform)
+{
+
+    auto obj = _addRenderObject<ROInfoLit, ROInfoGPULit>(flit_scene_tree, {0, transform}, {transform, transform}, shader, mesh, mat, transform, 10);
+    obj.type = ForwardLit;
+
+    ROInfoLit* item = &flit_scene_tree[obj.shader_section].mats[obj.mat_section].meshes[obj.mesh_section].cpu_info[obj.index];
+    item->maxima_indexes = addExtrema({Extrema::Maxima, Extrema::Object, item->bounding_box.max_pos, 0, obj.shader_section, obj.mat_section, obj.mesh_section, obj.index});
+    item->minima_indexes = addExtrema({Extrema::Minima, Extrema::Object, item->bounding_box.min_pos, 0, obj.shader_section, obj.mat_section, obj.mesh_section, obj.index});
+
+    return obj;
+}
+
+template <typename ROCpu, typename ROGpu>
+Frender::RenderObjectRef Frender::Renderer::_addRenderObject(std::vector<ShaderSection<MatSection<MeshSection<ROCpu, ROGpu>>>>& scene, ROCpu cpu, ROGpu gpu, GLTools::Shader shader, MeshRef mesh, uint32_t mat, glm::mat4 transform, int rows)
+{
     // Find the correct shader section, and create if it doesn't exist
     int shader_section_index = -1;
     int c = 0;
-    for (auto i : funlit_scene_tree)
+    for (auto i : scene)
     {
         if (i.shader.program == shader.program)
         {
@@ -473,8 +430,8 @@ Frender::RenderObjectRef Frender::Renderer::createUnlitRenderObject(GLTools::Sha
 
     if (shader_section_index == -1)
     {
-        funlit_scene_tree.push_back({shader, {}});
-        shader_section_index = funlit_scene_tree.size() - 1;
+        scene.push_back({shader, {}});
+        shader_section_index = scene.size() - 1;
     }
 
     auto m = getMaterial(mat);
@@ -482,7 +439,7 @@ Frender::RenderObjectRef Frender::Renderer::createUnlitRenderObject(GLTools::Sha
     // Find the correct section, or create if it doesn't exist
     int mat_section_index = -1;
     c = 0;
-    for (auto i : funlit_scene_tree[shader_section_index].mats)
+    for (auto i : scene[shader_section_index].mats)
     {
         if (i.mat.mat_ref == mat)
         {
@@ -494,11 +451,11 @@ Frender::RenderObjectRef Frender::Renderer::createUnlitRenderObject(GLTools::Sha
     if (mat_section_index == -1)
     {
         // Add a new mat section
-        funlit_scene_tree[shader_section_index].mats.push_back(MatSection<MeshSection<ROInfo, ROInfoGPU>> {{mat, m->uniforms.getRef(), m->shader}, {}});
-        mat_section_index = funlit_scene_tree[shader_section_index].mats.size() - 1;
+        scene.at(shader_section_index).mats.push_back(MatSection<MeshSection<ROCpu, ROGpu>> {{mat, m->uniforms.getRef(), m->shader}, {}});
+        mat_section_index = scene.at(shader_section_index).mats.size() - 1;
     }
 
-    MatSection<MeshSection<ROInfo, ROInfoGPU>>* ms = &funlit_scene_tree[shader_section_index].mats[mat_section_index];
+    MatSection<MeshSection<ROCpu, ROGpu>>* ms = &scene.at(shader_section_index).mats[mat_section_index];
 
     // Find Mesh Section
     int mesh_section_index = -1;
@@ -518,22 +475,17 @@ Frender::RenderObjectRef Frender::Renderer::createUnlitRenderObject(GLTools::Sha
         // We have to create some OpenGL Objects for this one
 
         // Create buffer for renderobjects
-        GLTools::Buffer<ROInfoGPU>* gpu_buffer = new GLTools::Buffer<ROInfoGPU>(GLTools::Dynamic, {
-            // Matrix has to be 4 values
-            {sizeof(glm::vec4), 4},
-            {sizeof(glm::vec4), 4},
-            {sizeof(glm::vec4), 4},
-            {sizeof(glm::vec4), 4},
 
-            // Matrix has to be 4 values
-            {sizeof(glm::vec4), 4},
-            {sizeof(glm::vec4), 4},
-            {sizeof(glm::vec4), 4},
-            {sizeof(glm::vec4), 4}
-        }, {});
+        std::vector<GLTools::_VertexAttribSize> sizes = {};
+        for (int i = 0; i < rows; i++)
+        {
+            sizes.push_back({sizeof(glm::vec4), 4});
+        }
+
+        GLTools::Buffer<ROGpu>* gpu_buffer = new GLTools::Buffer<ROGpu>(GLTools::Dynamic, sizes, {});
 
         auto v = new GLTools::VertexArray();
-        ms->meshes.push_back(MeshSection<ROInfo, ROInfoGPU> {mesh, v, {}, gpu_buffer});
+        ms->meshes.push_back(MeshSection<ROCpu, ROGpu> {mesh, v, {}, gpu_buffer});
         int index = ms->meshes.size() - 1;
 
         GLERRORCHECK();
@@ -549,12 +501,15 @@ Frender::RenderObjectRef Frender::Renderer::createUnlitRenderObject(GLTools::Sha
         mesh_section_index = ms->meshes.size() - 1;
     }
 
-    MeshSection<ROInfo, ROInfoGPU>* mes = &ms->meshes[mesh_section_index];
+    MeshSection<ROCpu, ROGpu>* mes = &ms->meshes[mesh_section_index];
 
     // Add actual data to CPU and GPU
     int index = mes->cpu_info.size();
-    mes->cpu_info.push_back({index, transform});
-    mes->gpu_buffer->pushBack({transform, transform});
+    cpu.index = index;
+    cpu.bounding_box = bounding_boxes[mes->mesh];
+    cpu.bounding_box.transformBoundingBox(transform);
+    mes->cpu_info.push_back(cpu);
+    mes->gpu_buffer->pushBack(gpu);
 
     return {Unlit, shader_section_index, mat_section_index, mesh_section_index, index, this};
 }
@@ -563,7 +518,8 @@ Frender::RenderObjectRef Frender::Renderer::duplicateRenderObject(RenderObjectRe
 {
     if (ro.type == Lit)
     {
-        return createRenderObject(scene_tree[ro.mat_section].meshes[ro.mesh_section].mesh, scene_tree[ro.mat_section].mat.mat_ref, scene_tree[ro.mat_section].meshes[ro.mesh_section].cpu_info[ro.index].model);
+        return createUnlitRenderObject(scene_tree[ro.shader_section].shader, scene_tree[ro.shader_section].mats[ro.mat_section].meshes[ro.mesh_section].mesh,
+            scene_tree[ro.shader_section].mats[ro.mat_section].mat.mat_ref, scene_tree[ro.shader_section].mats[ro.mat_section].meshes[ro.mesh_section].cpu_info[ro.index].model);
     }
     else
     {
@@ -577,9 +533,10 @@ Frender::RenderObjectTraits Frender::Renderer::getRenderObjectTraits(RenderObjec
     if (ro.type == Lit)
     {
         return {ro.type,
-            stage1_bulk_shader, scene_tree[ro.mat_section].mat.mat_ref,
-            scene_tree[ro.mat_section].meshes[ro.mesh_section].mesh,
-            scene_tree[ro.mat_section].meshes[ro.mesh_section].cpu_info[ro.index].model};
+            scene_tree[ro.shader_section].shader,
+            scene_tree[ro.shader_section].mats[ro.mat_section].mat.mat_ref,
+            scene_tree[ro.shader_section].mats[ro.mat_section].meshes[ro.mesh_section].mesh,
+            scene_tree[ro.shader_section].mats[ro.mat_section].meshes[ro.mesh_section].cpu_info[ro.index].model};
     }
     else
     {
@@ -596,17 +553,36 @@ uint32_t Frender::Renderer::createPointLight(glm::vec3 position, glm::vec3 color
     radius *= 1.5;
     auto m = glm::scale(glm::translate(glm::mat4(), position), glm::vec3(radius));
 
-    point_lights.push_back({color, position, radius, m});
+    point_lights.push_back({color, position, radius, m, light_index});
 
     // New method: Add to buffer
     point_light_buffer.pushBack({color, position, radius, m});
 
+    // Add to Extrema list
+    addExtrema({Extrema::Minima, Extrema::Light, position - glm::vec3(radius), static_cast<int>(point_lights.size() - 1), 0, 0, 0, 0});
+    addExtrema({Extrema::Maxima, Extrema::Light, position + glm::vec3(radius), static_cast<int>(point_lights.size() - 1), 0, 0, 0, 0});
+
+    // Add to light buffer
+    light_buffer.setArray("light_pos_dir_rad", light_index, glm::vec4(position.x, position.y, position.z, radius));
+    light_buffer.setArray("light_color_type", light_index, glm::vec4(color.x, color.y, color.z, 0));
+
+    light_index ++;
     return point_lights.size()-1;
 }
 
 uint32_t Frender::Renderer::createDirectionalLight(glm::vec3 color, glm::vec3 direction)
 {
-    directional_lights.push_back({color, direction});
+    directional_lights.push_back({color, direction, light_index});
+
+    // Add to Extrema list
+    addExtrema({Extrema::Minima, Extrema::Light, glm::vec3(-1000000), light_index, 0, 0, 0, 0});
+    addExtrema({Extrema::Maxima, Extrema::Light, glm::vec3(1000000), light_index, 0, 0, 0, 0});
+
+    // Add to light buffer
+    light_buffer.setArray("light_pos_dir_rad", light_index, glm::vec4(direction.x, direction.y, direction.z, 0));
+    light_buffer.setArray("light_color_type", light_index, glm::vec4(color.x, color.y, color.z, 1));
+
+    light_index ++;
     return point_lights.size()-1;
 }
 
@@ -625,4 +601,24 @@ Frender::RenderObjectRef Frender::RenderObjectRef::duplicate()
     return renderer->duplicateRenderObject(*this);
 }
 
+glm::vec3 Frender::Renderer::addExtrema(Extrema e)
+{
+    glm::vec3 output;
+
+    for (int i = 0; i < 3; i++)
+    {
+        // Add extrema in one axis
+        auto minima_it = std::upper_bound(broad_phase[i].begin(), broad_phase[i].end(), e,
+            [i] (const Extrema& value, Extrema& info)
+            {
+                return value.position[i] < info.position[i];
+            }
+        );
+
+        auto mit = broad_phase[i].insert(minima_it, e);
+        output[i] = mit - broad_phase[i].begin();
+    }
+
+    return output;
+}
 // TODO: Free memory allocated by the buffers, and generally clean up better

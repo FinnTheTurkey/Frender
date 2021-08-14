@@ -46,6 +46,9 @@ embed_resource("Shaders/stage3bloom.frag" "Include/Frender/Shaders/BloomFrag.h" 
 embed_resource("Shaders/unlit.vert" "Include/Frender/Shaders/UnlitVert.h" "UnlitVertSrc")
 embed_resource("Shaders/unlit.frag" "Include/Frender/Shaders/UnlitFrag.h" "UnlitFragSrc")
 
+embed_resource("Shaders/lit.vert" "Include/Frender/Shaders/LitVert.h" "LitVertSrc")
+embed_resource("Shaders/lit.frag" "Include/Frender/Shaders/LitFrag.h" "LitFragSrc")
+
 add_library(Frender 
     Src/Window.cc
     Src/Renderer.cc

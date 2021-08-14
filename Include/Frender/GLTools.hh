@@ -19,6 +19,10 @@
     case(GL_INVALID_OPERATION): std::cerr << __FILE__ <<":" << __LINE__ << " GL_INVALID_OPERATION\n";break; \
     }
 
+#ifndef FRENDER_MAX_UNIFORM_ARRAY 
+#define FRENDER_MAX_UNIFORM_ARRAY 256
+#endif
+
 namespace Frender::GLTools
 {
     struct Vertex
@@ -302,10 +306,10 @@ namespace Frender::GLTools
 
     enum UniformTypes
     {
-        Int, Float, Vec2, Vec3, Vec4, Mat4
+        Int, Float, Vec2, Vec3, Vec4, Mat4, Vec4Array
     };
 
-    typedef std::variant<std::monostate, int32_t, float, glm::vec2, glm::vec3, glm::vec4, glm::mat4> UniformType;
+    typedef std::variant<std::monostate, int32_t, float, glm::vec2, glm::vec3, glm::vec4, glm::mat4, std::array<glm::vec4, FRENDER_MAX_UNIFORM_ARRAY>> UniformType;
 
     struct UniformRow
     {
@@ -325,7 +329,7 @@ namespace Frender::GLTools
     class UniformRef
     {
     public:
-        void enable();
+        void enable(int loc);
         void destroy();
 
         uint32_t handle;
@@ -335,11 +339,26 @@ namespace Frender::GLTools
     {
     public:
         UniformBuffer() {};
-        UniformBuffer(Shader shader, std::string ub_name, std::vector<UniformRow> values_info);
+        UniformBuffer(Shader shader, std::string ub_name, std::vector<UniformRow> values_info, int loc = 0);
 
         void set(const std::string& name, UniformType value);
+        void setArray(const std::string& name, int index, glm::vec4 value);
 
-        void enable();
+        template <typename T>
+        T get(const std::string& name)
+        {
+            for (auto i : data)
+            {
+                if (i.name == name)
+                {
+                    return std::get<T>(i.value);
+                }
+            }
+
+            return T();
+        }
+
+        void enable(int loc);
         void destroy();
 
         UniformRef getRef() {return UniformRef {handle};};
