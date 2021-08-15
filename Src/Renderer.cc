@@ -39,7 +39,7 @@ Frender::Renderer::Renderer(int width, int height)
     bloom_exposure_loc_fxaa = stage3_shader.getUniformLocation("bloom_exposure");
 
     GLERRORCHECK();
-
+#ifndef FLUX_NO_DEFFERED
     // Create stage2 shaders
     stage2_light_shader = GLTools::Shader(Stage2VertSrc, Stage2FragSrc);
     light_uniforms.width = stage2_light_shader.getUniformLocation("width");
@@ -55,7 +55,7 @@ Frender::Renderer::Renderer(int width, int height)
     dlight_uniforms.color = stage2_dlight_shader.getUniformLocation("light_color");
     dlight_uniforms.cam_pos = stage2_dlight_shader.getUniformLocation("cam_pos");
     dlight_uniforms.light_pos = stage2_dlight_shader.getUniformLocation("light_direction");
-
+#endif
     // Create forward shaders
     unlit = GLTools::Shader(UnlitVertSrc, UnlitFragSrc);
 
@@ -85,6 +85,7 @@ Frender::Renderer::Renderer(int width, int height)
 
     plane = GLTools::MeshBuffer(vertices, indices);
 
+#ifndef FLUX_NO_DEFFERED
     // Create light sphere
     light_sphere = GLTools::MeshBuffer(sphere_vertices, sphere_indices);
 
@@ -124,6 +125,7 @@ Frender::Renderer::Renderer(int width, int height)
     GLERRORCHECK();
     light_sphere_vao.bind();
     GLERRORCHECK();
+#endif
 }
 
 void Frender::Renderer::render(float delta)
@@ -189,7 +191,7 @@ void Frender::Renderer::setRenderResolution(int new_width, int new_height)
     stage3_tex = GLTools::TextureManager(stage3_shader);
     GLERRORCHECK();
     stage3_tex.set("frame", stage3_fbo.getTexture()[0]);
-    stage3_tex.set("brightness", stage3_fbo.getTexture()[1]);
+    // stage3_tex.set("brightness", stage3_fbo.getTexture()[1]);
     GLERRORCHECK();
     has_stage3 = true;
 
@@ -213,6 +215,7 @@ void Frender::Renderer::setRenderResolution(int new_width, int new_height)
         stage3_tex.set("bloom_blur", bloom_fbo2.getTexture()[0]);
     }
 
+#ifndef FLUX_NO_DEFFERED
     // Create stage2 fbo and textures
     if (has_stage2)
     {
@@ -239,6 +242,7 @@ void Frender::Renderer::setRenderResolution(int new_width, int new_height)
     stage2_texd.set("NormalMetal", stage2_fbo.getTexture()[1]);
     stage2_texd.set("position", stage2_fbo.getTexture()[2]);
     GLERRORCHECK();
+#endif
 
     has_stage3 = true;
 }
@@ -251,10 +255,17 @@ uint32_t Frender::Renderer::createMaterial()
     {
         stage1_bulk_shader = GLTools::Shader(BulkStage1VertSrc, BulkStage1FragSrc);
     }
-
+#ifndef FRENDER_NO_DEFFERED
     mat.shader = stage1_bulk_shader;
+#else
+    mat.shader = lit_shader;
+#endif
     mat.type = Bulk;
+#ifndef FRENDER_NO_DEFFERED
     mat.uniforms = GLTools::UniformBuffer(stage1_bulk_shader, "Material", {
+#else
+    mat.uniforms = GLTools::UniformBuffer(lit_shader, "Material", {
+#endif
         {"color", GLTools::Vec3, glm::vec3(1, 0, 0)},
         {"roughness", GLTools::Float, 0.4f},
         {"metalness", GLTools::Float, 0.0f},
@@ -263,7 +274,11 @@ uint32_t Frender::Renderer::createMaterial()
         {"has_roughness_map", GLTools::Int, 0},
         {"has_metal_map", GLTools::Int, 0}
     });
+#ifndef FRENDER_NO_DEFFERED
     mat.textures = GLTools::TextureManager(stage1_bulk_shader);
+#else
+    mat.textures = GLTools::TextureManager(lit_shader);
+#endif
     materials.push_back(mat);
 
     return materials.size()-1;
@@ -381,7 +396,9 @@ Frender::MeshRef Frender::Renderer::createMesh(const std::vector<Vertex>& vertic
 
 Frender::RenderObjectRef Frender::Renderer::createRenderObject(MeshRef mesh, uint32_t mat, glm::mat4 transform)
 {
-
+#ifdef FRENDER_NO_DEFFERED
+    return createLitRenderObject(mesh, mat, transform);
+#else
     if (getMaterial(mat)->shader.program != stage1_bulk_shader.program)
     {
         return createUnlitRenderObject(getMaterial(mat)->shader, mesh, mat, transform);
@@ -390,6 +407,7 @@ Frender::RenderObjectRef Frender::Renderer::createRenderObject(MeshRef mesh, uin
     auto obj = _addRenderObject<ROInfo, ROInfoGPU>(scene_tree, {0, transform}, {transform, transform}, stage1_bulk_shader, mesh, mat, transform);
     obj.type = Lit;
     return obj;
+#endif
 }
 
 Frender::RenderObjectRef Frender::Renderer::createUnlitRenderObject(GLTools::Shader shader, MeshRef mesh, uint32_t mat, glm::mat4 transform)
@@ -538,6 +556,15 @@ Frender::RenderObjectTraits Frender::Renderer::getRenderObjectTraits(RenderObjec
             scene_tree[ro.shader_section].mats[ro.mat_section].meshes[ro.mesh_section].mesh,
             scene_tree[ro.shader_section].mats[ro.mat_section].meshes[ro.mesh_section].cpu_info[ro.index].model};
     }
+    else if (ro.type == ForwardLit)
+    {
+
+        return {ro.type,
+            flit_scene_tree[ro.shader_section].shader,
+            flit_scene_tree[ro.shader_section].mats[ro.mat_section].mat.mat_ref,
+            flit_scene_tree[ro.shader_section].mats[ro.mat_section].meshes[ro.mesh_section].mesh,
+            flit_scene_tree[ro.shader_section].mats[ro.mat_section].meshes[ro.mesh_section].cpu_info[ro.index].model};
+    }
     else
     {
         return {ro.type,
@@ -555,8 +582,10 @@ uint32_t Frender::Renderer::createPointLight(glm::vec3 position, glm::vec3 color
 
     point_lights.push_back({color, position, radius, m, light_index});
 
+#ifndef FLUX_NO_DEFFERED
     // New method: Add to buffer
     point_light_buffer.pushBack({color, position, radius, m});
+#endif
 
     // Add to Extrema list
     addExtrema({Extrema::Minima, Extrema::Light, position - glm::vec3(radius), static_cast<int>(point_lights.size() - 1), 0, 0, 0, 0});

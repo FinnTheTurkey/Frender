@@ -203,7 +203,7 @@ void main()
     {
         if (lights_part1[i] != -1.0)
         {
-            end_result += reflectanceEquation(light_color_type[int(lights_part1[i])].w, normal, V, F0, colour.xyz,
+            end_result += reflectanceEquation(light_color_type[int(lights_part1[i])].w, N, V, F0, colour.xyz,
                     light_pos_dir_rad[int(lights_part1[i])].xyz,
                     world_pos, light_color_type[int(lights_part1[i])].xyz, rness, mness, light_pos_dir_rad[int(lights_part1[i])].w);
         }
@@ -213,7 +213,7 @@ void main()
     {
         if (lights_part2[i] != -1.0)
         {
-            end_result += reflectanceEquation(light_color_type[int(lights_part2[i])].w, normal, V, F0, colour.xyz,
+            end_result += reflectanceEquation(light_color_type[int(lights_part2[i])].w, N, V, F0, colour.xyz,
                     light_pos_dir_rad[int(lights_part2[i])].xyz,
                     world_pos, light_color_type[int(lights_part2[i])].xyz, rness, mness, light_pos_dir_rad[int(lights_part2[i])].w);
         }

@@ -538,8 +538,11 @@ void Frender::GLTools::TextureManager::enable()
     for (int i = 0; i < size; i++)
     {
         glActiveTexture(pos);
+        GLERRORCHECK();
         glBindTexture(GL_TEXTURE_2D, data[i].tex.handle);
+        GLERRORCHECK();
         glUniform1i(data[i].location, i);
+        GLERRORCHECK();
         pos ++;
     }
 }

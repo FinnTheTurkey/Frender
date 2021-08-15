@@ -7,6 +7,7 @@
 
 void Frender::Renderer::bulkRender()
 {
+#ifndef FRENDER_NO_DEFERRED
     // Stage 1: Geometry pass
     stage2_fbo.enable();
     GLERRORCHECK();
@@ -140,17 +141,22 @@ void Frender::Renderer::bulkRender()
     glDepthMask(GL_TRUE);
     glDepthFunc(GL_LESS);
     // glCullFace(GL_FRONT);
+#endif
 
     // Unlit/Forward rendered objects
     unlitRender(vp);
+    GLERRORCHECK();
 
     // Lit forward objects
     // Calculate light intersections
     calculateLighting(vp);
+    GLERRORCHECK();
     litRender(vp);
+    GLERRORCHECK();
 
     stage3_fbo.disable();
 
+    GLERRORCHECK();
     // Stage 2.99: Bloom
     plane.enable();
     GLERRORCHECK();
@@ -292,10 +298,13 @@ void Frender::Renderer::litRender(glm::mat4 vp)
         light_buffer.enable(1);
         // TODO: Make shader independant
         shdr.shader.setUniform(lit_uniforms.cam_pos, camera * glm::vec4(0, 0, 0, 1));
+        GLERRORCHECK();
         for (auto mat : shdr.mats)
         {
             mat.mat.uniforms.enable(0);
+            GLERRORCHECK();
             getMaterial(mat.mat.mat_ref)->textures.enable();
+            GLERRORCHECK();
 
             for (auto mesh : mat.meshes)
             {
@@ -328,6 +337,7 @@ void Frender::Renderer::litRender(glm::mat4 vp)
                         gput.model = ro.model;
                         gput.mvp = mvp;
                         mesh.gpu_buffer->set(to_draw, gput);
+                        GLERRORCHECK();
                         to_draw++;
                     // }
                 }
@@ -336,10 +346,13 @@ void Frender::Renderer::litRender(glm::mat4 vp)
                 {
                     // Upload to GPU
                     mesh.gpu_buffer->apply();
+                    GLERRORCHECK();
 
                     // Render
                     mesh.vao->enable();
+                    GLERRORCHECK();
                     mesh.vao->draw(to_draw); // Only render elements added to the front
+                    GLERRORCHECK();
                 }
             }
         }

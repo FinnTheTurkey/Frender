@@ -204,7 +204,7 @@ void main()\n\
     {\n\
         if (lights_part1[i] != -1.0)\n\
         {\n\
-            end_result += reflectanceEquation(light_color_type[int(lights_part1[i])].w, normal, V, F0, colour.xyz,\n\
+            end_result += reflectanceEquation(light_color_type[int(lights_part1[i])].w, N, V, F0, colour.xyz,\n\
                     light_pos_dir_rad[int(lights_part1[i])].xyz,\n\
                     world_pos, light_color_type[int(lights_part1[i])].xyz, rness, mness, light_pos_dir_rad[int(lights_part1[i])].w);\n\
         }\n\
@@ -214,7 +214,7 @@ void main()\n\
     {\n\
         if (lights_part2[i] != -1.0)\n\
         {\n\
-            end_result += reflectanceEquation(light_color_type[int(lights_part2[i])].w, normal, V, F0, colour.xyz,\n\
+            end_result += reflectanceEquation(light_color_type[int(lights_part2[i])].w, N, V, F0, colour.xyz,\n\
                     light_pos_dir_rad[int(lights_part2[i])].xyz,\n\
                     world_pos, light_color_type[int(lights_part2[i])].xyz, rness, mness, light_pos_dir_rad[int(lights_part2[i])].w);\n\
         }\n\

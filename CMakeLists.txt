@@ -49,6 +49,9 @@ embed_resource("Shaders/unlit.frag" "Include/Frender/Shaders/UnlitFrag.h" "Unlit
 embed_resource("Shaders/lit.vert" "Include/Frender/Shaders/LitVert.h" "LitVertSrc")
 embed_resource("Shaders/lit.frag" "Include/Frender/Shaders/LitFrag.h" "LitFragSrc")
 
+# Disable the deffered render
+# add_compile_definitions(FRENDER_NO_DEFFERED)
+
 add_library(Frender 
     Src/Window.cc
     Src/Renderer.cc

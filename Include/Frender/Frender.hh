@@ -463,6 +463,10 @@ namespace Frender
                 {
                     return &funlit_scene_tree[shader_section].mats[mat_section].meshes[mesh_section].cpu_info[index];
                 }
+                case (ForwardLit):
+                {
+                    return &flit_scene_tree[shader_section].mats[mat_section].meshes[mesh_section].cpu_info[index];
+                }
                 default: break;
             }
 
