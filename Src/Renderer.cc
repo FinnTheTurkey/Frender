@@ -329,7 +329,7 @@ Frender::Material* Frender::Renderer::getMaterial(uint32_t material)
 
 Frender::Texture Frender::Renderer::createTexture(int width, int height, const unsigned char *data)
 {
-    Texture tex(width, height, data);
+    Texture tex(width, height, data, true);
 
     // Store it so we can safely remove it
     textures.push_back(tex);

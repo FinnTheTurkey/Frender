@@ -378,7 +378,7 @@ namespace Frender::GLTools
     public:
         Texture() {};
         Texture(uint32_t handle): handle(handle) {}
-        Texture(int width, int height, const unsigned char* data);
+        Texture(int width, int height, const unsigned char* data, bool mipmap = false);
 
         void destroy();
 

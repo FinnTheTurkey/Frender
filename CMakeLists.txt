@@ -16,9 +16,17 @@ set(CMAKE_CXX_STANDARD 17)
 # embed_resource("data.glsl" "data.h" "DATA")
 ####################################################################################################
 
-function(embed_resource resource_file_name source_file_name variable_name)
+function(embed_shader resource_file_name source_file_name variable_name)
+    # Run GLSLify if possible
+    get_filename_component(og_path "Shaders/${resource_file_name}" ABSOLUTE)
+    get_filename_component(newg_path "Shaders/build/${resource_file_name}" ABSOLUTE)
 
-    file(READ ${resource_file_name} text_content)
+    if (FOUND_GLSLIFY)
+        message("-- Compiling shader: ${resource_file_name}")
+        execute_process(COMMAND "glslify" "${og_path}" "-o" "${newg_path}")
+    endif()
+
+    file(READ "${newg_path}" text_content)
 
     string(REPLACE "\"" "\\\"" content "${text_content}")
     string(REPLACE "\n" "\\n\\\n" content "${content}")
@@ -27,27 +35,39 @@ function(embed_resource resource_file_name source_file_name variable_name)
 
     set(source "// Auto generated file.\n${array_definition}\n")
 
-    file(WRITE "${source_file_name}" "${source}")
+    file(WRITE "Include/Frender/Shaders/${source_file_name}" "${source}")
 
 endfunction()
 
-embed_resource("Shaders/stage1.vert" "Include/Frender/Shaders/Stage1Vert.h" "BulkStage1VertSrc")
-embed_resource("Shaders/stage1.frag" "Include/Frender/Shaders/Stage1Frag.h" "BulkStage1FragSrc")
+# Check for GLSLify
+message("-- Checking for GLSLify")
+execute_process(COMMAND "glslify" "-v"
+                RESULT_VARIABLE result)
+# message(${result})
+if (result EQUAL "0")
+    set(FOUND_GLSLIFY ON)
+    message("-- Found GLSLify")
+else()
+    message("-- Could not find glslify; shaders will not be compiled")
+endif()
 
-embed_resource("Shaders/stage2light.vert" "Include/Frender/Shaders/Stage2Vert.h" "Stage2VertSrc")
-embed_resource("Shaders/stage2light.frag" "Include/Frender/Shaders/Stage2Frag.h" "Stage2FragSrc")
-embed_resource("Shaders/stage2directionallight.frag" "Include/Frender/Shaders/Stage2FragD.h" "Stage2FragDSrc")
+embed_shader("stage1.vert" "Stage1Vert.h" "BulkStage1VertSrc")
+embed_shader("stage1.frag" "Stage1Frag.h" "BulkStage1FragSrc")
 
-embed_resource("Shaders/stage3.vert" "Include/Frender/Shaders/Stage3Vert.h" "Stage3VertSrc")
-embed_resource("Shaders/stage3.frag" "Include/Frender/Shaders/Stage3Frag.h" "Stage3FragSrc")
-embed_resource("Shaders/stage3fxaa.frag" "Include/Frender/Shaders/Stage3FxaaFrag.h" "Stage3FxaaFragSrc")
-embed_resource("Shaders/stage3bloom.frag" "Include/Frender/Shaders/BloomFrag.h" "BloomFragSrc")
+embed_shader("stage2light.vert" "Stage2Vert.h" "Stage2VertSrc")
+embed_shader("stage2light.frag" "Stage2Frag.h" "Stage2FragSrc")
+embed_shader("stage2directionallight.frag" "Stage2FragD.h" "Stage2FragDSrc")
 
-embed_resource("Shaders/unlit.vert" "Include/Frender/Shaders/UnlitVert.h" "UnlitVertSrc")
-embed_resource("Shaders/unlit.frag" "Include/Frender/Shaders/UnlitFrag.h" "UnlitFragSrc")
+embed_shader("stage3.vert" "Stage3Vert.h" "Stage3VertSrc")
+embed_shader("stage3.frag" "Stage3Frag.h" "Stage3FragSrc")
+embed_shader("stage3fxaa.frag" "Stage3FxaaFrag.h" "Stage3FxaaFragSrc")
+embed_shader("stage3bloom.frag" "BloomFrag.h" "BloomFragSrc")
 
-embed_resource("Shaders/lit.vert" "Include/Frender/Shaders/LitVert.h" "LitVertSrc")
-embed_resource("Shaders/lit.frag" "Include/Frender/Shaders/LitFrag.h" "LitFragSrc")
+embed_shader("unlit.vert" "UnlitVert.h" "UnlitVertSrc")
+embed_shader("unlit.frag" "UnlitFrag.h" "UnlitFragSrc")
+
+embed_shader("lit.vert" "LitVert.h" "LitVertSrc")
+embed_shader("lit.frag" "LitFrag.h" "LitFragSrc")
 
 # Disable the deffered render
 # add_compile_definitions(FRENDER_NO_DEFFERED)

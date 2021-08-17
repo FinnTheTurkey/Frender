@@ -1,5 +1,6 @@
 // Auto generated file.
 static const char LitFragSrc[] = "#version 330 core\n\
+#define GLSLIFY 1\n\
 layout (location = 0) out vec4 FragColor;\n\
 layout (location = 1) out vec4 BrightColor;\n\
 \n\
@@ -148,16 +149,6 @@ vec3 reflectanceEquation(float light_type, vec3 N, vec3 V, vec3 F0, vec3 diffuse
 \n\
 void main()\n\
 {\n\
-    // vec2 screen_pos = vec2(gl_FragCoord.x/width, gl_FragCoord.y/height);\n\
-    // FragColor = vec4(texture(ColorRoughness, vec2(gl_FragCoord.x/width, gl_FragCoord.y/height)).xyz, 1.0f);\n\
-    // vec4 color_roughness = texture(ColorRoughness, screen_pos);\n\
-    // vec3 color = color_roughness.xyz;\n\
-    // float roughness = color_roughness.w;\n\
-\n\
-    // vec4 normal_metal = texture(NormalMetal, screen_pos);\n\
-    // vec3 normal = normal_metal.xyz;\n\
-    // float metal = normal_metal.w;\n\
-\n\
     float rness = roughness;\n\
     float mness = metalness;\n\
 \n\

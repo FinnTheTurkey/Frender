@@ -491,7 +491,7 @@ void Frender::GLTools::UniformRef::destroy()
 // Texture
 // ====================================================================
 
-Frender::GLTools::Texture::Texture(int width, int height, const unsigned char* data)
+Frender::GLTools::Texture::Texture(int width, int height, const unsigned char* data, bool mipmap)
 {
     glGenTextures(1, &handle);
     glBindTexture(GL_TEXTURE_2D, handle);
@@ -505,7 +505,11 @@ Frender::GLTools::Texture::Texture(int width, int height, const unsigned char* d
 
     // Add data
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, data);
-    // glGenerateMipmap(GL_TEXTURE_2D);
+    
+    if (mipmap)
+    {
+        glGenerateMipmap(GL_TEXTURE_2D);
+    }
 
     vram_usage += width * height * 4;
 }

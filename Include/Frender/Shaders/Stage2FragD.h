@@ -1,5 +1,6 @@
 // Auto generated file.
 static const char Stage2FragDSrc[] = "#version 330 core\n\
+#define GLSLIFY 1\n\
 layout (location = 0) out vec4 FragColor;\n\
 layout (location = 1) out vec4 BrightColor;\n\
 \n\
@@ -70,29 +71,31 @@ Types:\n\
 1 - Directional light\n\
 2 - Spot light\n\
 */\n\
-vec3 reflectanceEquation(vec3 N, vec3 V, vec3 F0, vec3 diffuse, vec3 light_dir,\n\
-                        vec3 light_color, float roughness_p, float metal_p)\n\
+vec3 reflectanceEquation(float light_type, vec3 N, vec3 V, vec3 F0, vec3 diffuse, vec3 light_pos, vec3 world_pos,\n\
+                        vec3 light_color, float roughness_p, float metal_p, float radius)\n\
 {\n\
     // Calculate per light radiance\n\
     vec3 L;\n\
-    // if (light_infos.x == 1.0) // Directional light\n\
-    // {\n\
-        L = normalize(-light_dir);\n\
-    // }\n\
-    // else\n\
-    // {\n\
-        // L = normalize(light_pos - world_pos.xyz);\n\
-    // }\n\
+    if (light_type == 1.0) // Directional light\n\
+    {\n\
+        L = normalize(-light_pos);\n\
+    }\n\
+    else\n\
+    {\n\
+        L = normalize(light_pos - world_pos.xyz);\n\
+    }\n\
 \n\
     vec3 H = normalize(V + L);\n\
-    // float distance = length(light_pos - world_pos.xyz);\n\
     // float attenuation = 1.0 / (distance * distance);\n\
     vec3 radiance;\n\
-    // if (light_infos.x == 0.0)\n\
-    // {\n\
-        // float attenuation = pow(1.0-pow((distance/radius),4.0),2.0)/distance*distance+1.0;\n\
-        // radiance = light_color * attenuation;\n\
-    // }\n\
+    if (light_type == 0.0)\n\
+    {\n\
+        float distance = length(light_pos - world_pos.xyz);\n\
+        // float attenuation = pow(1.0-pow((distance/(radius/2)),4.0),2.0)/distance*distance+1.0;\n\
+        // float attenuation = 1.0 / (distance * distance);\n\
+        float attenuation = clamp(1.0 - distance/(radius/1.5), 0.0, 1.0);\n\
+        radiance = light_color * attenuation;\n\
+    }\n\
     // else if (light_infos.x == 2.0) // Spot light\n\
     // {\n\
     //     float theta = dot(L, normalize(-light_direction));\n\
@@ -101,10 +104,10 @@ vec3 reflectanceEquation(vec3 N, vec3 V, vec3 F0, vec3 diffuse, vec3 light_dir,\
     //     float attenuation = clamp((theta - light_infos.z) / epsilon, 0.0, 1.0);\n\
     //     radiance = light_color * attenuation;\n\
     // }\n\
-    // else // Directional light\n\
-    // {\n\
+    else // Directional light\n\
+    {\n\
         radiance = light_color;\n\
-    // }\n\
+    }\n\
 \n\
     // Cook-Torrance BRDF\n\
     float NDF = distributionGGX(N, H, roughness_p);\n\
@@ -142,9 +145,9 @@ void main()\n\
     vec3 F0 = vec3(0.4);\n\
     F0 = mix(F0, color.xyz, metal);\n\
 \n\
-    vec3 end_result = reflectanceEquation(normal, V, F0, color.xyz,\n\
-                light_direction,\n\
-                light_color, roughness, metal);\n\
+    vec3 end_result = reflectanceEquation(1.0, normal, V, F0, color.xyz,\n\
+                light_direction, pos,\n\
+                light_color, roughness, metal, 0);\n\
 \n\
     FragColor = vec4(end_result, 1);\n\
     // FragColor = vec4(0, 1, 0, 1);\n\
