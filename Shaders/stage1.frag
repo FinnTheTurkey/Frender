@@ -26,6 +26,8 @@ uniform sampler2D metal_map;
 uniform sampler2D normal_map;
 uniform sampler2D roughness_map;
 
+// uniform vec3 cam_pos;
+
 void main()
 {
     float rness = roughness;
@@ -41,7 +43,7 @@ void main()
     }
 
     vec3 N = normal.xyz;
-    if (has_normal_map == 1)
+    if (has_normal_map == 1 /*&& distance(world_pos, cam_pos) < 10*/)
     {
         N = texture(normal_map, tex_coords).xyz;
 

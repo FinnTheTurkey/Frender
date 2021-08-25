@@ -69,8 +69,12 @@ embed_shader("unlit.frag" "UnlitFrag.h" "UnlitFragSrc")
 embed_shader("lit.vert" "LitVert.h" "LitVertSrc")
 embed_shader("lit.frag" "LitFrag.h" "LitFragSrc")
 
-# Disable the deffered render
-# add_compile_definitions(FRENDER_NO_DEFFERED)
+embed_shader("equiToCubemap.vert" "EquiToCubemapVert.h" "EquiToCubemapVertSrc")
+embed_shader("equiToCubemap.frag" "EquiToCubemapFrag.h" "EquiToCubemapFragSrc")
+embed_shader("skybox.frag" "SkyboxFrag.h" "SkyboxFragSrc")
+embed_shader("skybox.vert" "SkyboxVert.h" "SkyboxVertSrc")
+# Disable the defered render
+add_compile_definitions(FRENDER_NO_DEFERED)
 
 add_library(Frender 
     Src/Window.cc

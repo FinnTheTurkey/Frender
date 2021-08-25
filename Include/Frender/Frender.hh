@@ -432,6 +432,11 @@ namespace Frender
         */
         uint32_t createDirectionalLight(glm::vec3 color, glm::vec3 direction);
 
+        /**
+        Sets the skybox
+        */
+        void setSkybox(int width, int height, float* data);
+
         // Settings
         float fov_rad = 1.57;
         float near_distance = 0.01;
@@ -563,6 +568,15 @@ namespace Frender
         std::vector<DirectionLight> directional_lights;
         GLTools::UniformBuffer light_buffer;
         int light_index; // TODO: id reuse queue
+
+        // Skybox and ibl state
+        bool has_skybox = false;
+        Texture sky_cubemap;
+        GLTools::MeshBuffer cube;
+        GLTools::Shader equiToCubemap_shader;
+        GLTools::Shader skybox_shader;
+        GLTools::TextureManager skybox_textures;
+        uint32_t skybox_vp_loc;
 
         // Useful info
         glm::mat4 camera;

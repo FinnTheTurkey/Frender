@@ -1,4 +1,5 @@
 #include "Frender/GLTools.hh"
+#include "glm/gtc/matrix_transform.hpp"
 #include <glad/glad.h>
 #include <iostream>
 #include <glm/gtc/type_ptr.hpp>
@@ -301,6 +302,11 @@ void Frender::GLTools::Shader::setUniform(uint32_t loc, glm::vec3 value)
     glUniform3f(loc, value.x, value.y, value.z);
 }
 
+void Frender::GLTools::Shader::setUniform(uint32_t loc, glm::mat4 mat)
+{
+    glUniformMatrix4fv(loc, 1, GL_FALSE, glm::value_ptr(mat));
+}
+
 // ====================================================================
 // Uniform Buffer
 // ====================================================================
@@ -514,6 +520,29 @@ Frender::GLTools::Texture::Texture(int width, int height, const unsigned char* d
     vram_usage += width * height * 4;
 }
 
+Frender::GLTools::Texture::Texture(int width, int height, const float* data, bool mipmap)
+{
+    glGenTextures(1, &handle);
+    glBindTexture(GL_TEXTURE_2D, handle);
+
+    // Set options
+    // TODO: Make these user editable
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+    // Add data
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F, width, height, 0, GL_RGBA, GL_FLOAT, data);
+
+    if (mipmap)
+    {
+        glGenerateMipmap(GL_TEXTURE_2D);
+    }
+
+    vram_usage += width * height * 8;
+}
+
 void Frender::GLTools::Texture::destroy()
 {
     glDeleteTextures(1, &handle);
@@ -521,12 +550,151 @@ void Frender::GLTools::Texture::destroy()
     // TODO: decrement vram_usage variable
 }
 
+Frender::GLTools::Texture Frender::GLTools::createCubemap(int width, int height)
+{
+    uint32_t tx;
+
+    glGenTextures(1, &tx);
+    glBindTexture(GL_TEXTURE_CUBE_MAP, tx);
+
+    for (unsigned int i = 0; i < 6; ++i)
+    {
+        // note that we store each face with 16 bit floating point values
+        glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, 0, GL_RGBA16F, 
+                    512, 512, 0, GL_RGBA, GL_FLOAT, nullptr);
+    }
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+    return tx;
+}
+
+Frender::GLTools::Texture Frender::GLTools::equirectangularToCubemap(Shader shader, Texture equi)
+{
+    auto fb = Framebuffer(512, 512, {
+        {Texture2D, RGBA16},
+    });
+
+    // Create cube mesh
+    std::vector<GLTools::Vertex> vertices = {
+            // back face
+            {-1.0f, -1.0f, -1.0f,  0.0f,  0.0f, -1.0f, 0.0f, 0.0f}, // bottom-left
+            {1.0f,  1.0f, -1.0f,  0.0f,  0.0f, -1.0f, 1.0f, 1.0f}, // top-right
+            {1.0f, -1.0f, -1.0f,  0.0f,  0.0f, -1.0f, 1.0f, 0.0f}, // bottom-right         
+            {1.0f,  1.0f, -1.0f,  0.0f,  0.0f, -1.0f, 1.0f, 1.0f}, // top-right
+            {-1.0f, -1.0f, -1.0f,  0.0f,  0.0f, -1.0f, 0.0f, 0.0f}, // bottom-left
+            {-1.0f,  1.0f, -1.0f,  0.0f,  0.0f, -1.0f, 0.0f, 1.0f}, // top-left
+            // front face
+            {-1.0f, -1.0f,  1.0f,  0.0f,  0.0f,  1.0f, 0.0f, 0.0f}, // bottom-left
+             {1.0f, -1.0f,  1.0f,  0.0f,  0.0f,  1.0f, 1.0f, 0.0f}, // bottom-right
+             {1.0f,  1.0f,  1.0f,  0.0f,  0.0f,  1.0f, 1.0f, 1.0f}, // top-right
+            { 1.0f,  1.0f,  1.0f,  0.0f,  0.0f,  1.0f, 1.0f, 1.0f}, // top-right
+            {-1.0f,  1.0f,  1.0f,  0.0f,  0.0f,  1.0f, 0.0f, 1.0f}, // top-left
+            {-1.0f, -1.0f,  1.0f,  0.0f,  0.0f,  1.0f, 0.0f, 0.0f}, // bottom-left
+            // left face
+            {-1.0f,  1.0f,  1.0f, -1.0f,  0.0f,  0.0f, 1.0f, 0.0f}, // top-right
+            {-1.0f,  1.0f, -1.0f, -1.0f,  0.0f,  0.0f, 1.0f, 1.0f}, // top-left
+            {-1.0f, -1.0f, -1.0f, -1.0f,  0.0f,  0.0f, 0.0f, 1.0f}, // bottom-left
+            {-1.0f, -1.0f, -1.0f, -1.0f,  0.0f,  0.0f, 0.0f, 1.0f}, // bottom-left
+            {-1.0f, -1.0f,  1.0f, -1.0f,  0.0f,  0.0f, 0.0f, 0.0f}, // bottom-right
+            {-1.0f,  1.0f,  1.0f, -1.0f,  0.0f,  0.0f, 1.0f, 0.0f}, // top-right
+            // right face
+            { 1.0f,  1.0f,  1.0f,  1.0f,  0.0f,  0.0f, 1.0f, 0.0f}, // top-left
+             {1.0f, -1.0f, -1.0f,  1.0f,  0.0f,  0.0f, 0.0f, 1.0f}, // bottom-right
+             {1.0f,  1.0f, -1.0f,  1.0f,  0.0f,  0.0f, 1.0f, 1.0f}, // top-right         
+             {1.0f, -1.0f, -1.0f,  1.0f,  0.0f,  0.0f, 0.0f, 1.0f}, // bottom-right
+            { 1.0f,  1.0f,  1.0f,  1.0f,  0.0f,  0.0f, 1.0f, 0.0f}, // top-left
+            { 1.0f, -1.0f,  1.0f,  1.0f,  0.0f,  0.0f, 0.0f, 0.0f}, // bottom-left     
+            // bottom face
+            {-1.0f, -1.0f, -1.0f,  0.0f, -1.0f,  0.0f, 0.0f, 1.0f}, // top-right
+            { 1.0f, -1.0f, -1.0f,  0.0f, -1.0f,  0.0f, 1.0f, 1.0f}, // top-left
+            { 1.0f, -1.0f,  1.0f,  0.0f, -1.0f,  0.0f, 1.0f, 0.0f}, // bottom-left
+            { 1.0f, -1.0f,  1.0f,  0.0f, -1.0f,  0.0f, 1.0f, 0.0f}, // bottom-left
+            {-1.0f, -1.0f,  1.0f,  0.0f, -1.0f,  0.0f, 0.0f, 0.0f}, // bottom-right
+            {-1.0f, -1.0f, -1.0f,  0.0f, -1.0f,  0.0f, 0.0f, 1.0f}, // top-right
+            // top face
+            {-1.0f,  1.0f, -1.0f,  0.0f,  1.0f,  0.0f, 0.0f, 1.0f}, // top-left
+             {1.0f,  1.0f , 1.0f,  0.0f,  1.0f,  0.0f, 1.0f, 0.0f}, // bottom-right
+            { 1.0f,  1.0f, -1.0f,  0.0f,  1.0f,  0.0f, 1.0f, 1.0f}, // top-right     
+             {1.0f,  1.0f,  1.0f,  0.0f,  1.0f,  0.0f, 1.0f, 0.0f}, // bottom-right
+            {-1.0f,  1.0f, -1.0f,  0.0f,  1.0f,  0.0f, 0.0f, 1.0f}, // top-left
+            {-1.0f,  1.0f,  1.0f,  0.0f,  1.0f,  0.0f, 0.0f, 0.0f}  // bottom-left        
+    };
+
+    std::vector<uint32_t> indices;
+    for (int i = 0; i < vertices.size(); i++)
+    {
+        indices.push_back(i);
+    }
+
+    auto mb = MeshBuffer(vertices, indices);
+    mb.enable();
+
+    shader.enable();
+    auto t = TextureManager(shader);
+    t.set("equirectangularMap", equi);
+    t.enable();
+
+    glm::mat4 captureProjection = glm::perspective(glm::radians(90.0f), 1.0f, 0.1f, 10.0f);
+    glm::mat4 captureViews[] = 
+    {
+        glm::lookAt(glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3( 1.0f,  0.0f,  0.0f), glm::vec3(0.0f, -1.0f,  0.0f)),
+        glm::lookAt(glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(-1.0f,  0.0f,  0.0f), glm::vec3(0.0f, -1.0f,  0.0f)),
+        glm::lookAt(glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3( 0.0f,  1.0f,  0.0f), glm::vec3(0.0f,  0.0f,  1.0f)),
+        glm::lookAt(glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3( 0.0f, -1.0f,  0.0f), glm::vec3(0.0f,  0.0f, -1.0f)),
+        glm::lookAt(glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3( 0.0f,  0.0f,  1.0f), glm::vec3(0.0f, -1.0f,  0.0f)),
+        glm::lookAt(glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3( 0.0f,  0.0f, -1.0f), glm::vec3(0.0f, -1.0f,  0.0f))
+    };
+
+    shader.setUniform(shader.getUniformLocation("projection"), captureProjection);
+
+    auto cubemap = createCubemap(512, 512);
+    auto sacrafice = fb.getTexture()[0];
+    GLERRORCHECK();
+    fb.setTexture(0, CUBEMAP_PX, RGBA16, cubemap);
+
+    glViewport(0, 0, 512, 512);
+    for (int i = 0; i < 6; i++)
+    {
+        shader.setUniform(shader.getUniformLocation("view"), captureViews[i]);
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+        mb.enable();
+
+        glDrawElements(GL_TRIANGLES, mb.num_indices, GL_UNSIGNED_INT, 0);
+
+        if (i != 5)
+        {
+            fb.setTexture(0, (TextureVarieties)(CUBEMAP_PX + i + 1), RGBA16, cubemap);
+        }
+    }
+
+    // Clean up
+    // Destroying fbo destroys it's textures too, so add sacraficial texture
+    fb.setTexture(0, Texture2D, RGBA16, sacrafice);
+    fb.destroy();
+    mb.destroy();
+
+    return cubemap;
+}
+
 void Frender::GLTools::TextureManager::set(const std::string &name, Texture tex)
 {
     GLERRORCHECK();
     uint32_t loc = glGetUniformLocation(shader.program, name.c_str());
     GLERRORCHECK();
-    data[size] = {true, name, tex, loc};
+    data[size] = {true, name, tex, loc, Texture2D};
+    size ++;
+}
+
+void Frender::GLTools::TextureManager::set(const std::string &name, Texture tex, TextureVarieties vari)
+{
+    GLERRORCHECK();
+    uint32_t loc = glGetUniformLocation(shader.program, name.c_str());
+    GLERRORCHECK();
+    data[size] = {true, name, tex, loc, vari};
     size ++;
 }
 
@@ -543,7 +711,11 @@ void Frender::GLTools::TextureManager::enable()
     {
         glActiveTexture(pos);
         GLERRORCHECK();
-        glBindTexture(GL_TEXTURE_2D, data[i].tex.handle);
+        glBindTexture(data[i].vari == Texture2D ? GL_TEXTURE_2D : GL_TEXTURE_CUBE_MAP, data[i].tex.handle);
+        if (glGetError() == GL_INVALID_OPERATION)
+        {
+            std::cout << "bad\n";
+        }
         GLERRORCHECK();
         glUniform1i(data[i].location, i);
         GLERRORCHECK();
@@ -559,7 +731,7 @@ long long Frender::GLTools::getVramUsage()
 // ====================================================================
 // Framebuffer
 // ====================================================================
-Frender::GLTools::Framebuffer::Framebuffer(int width, int height, const std::vector<TextureTypes>& textures)
+Frender::GLTools::Framebuffer::Framebuffer(int width, int height, const std::vector<std::pair<TextureVarieties, TextureTypes>>& textures)
 : width(width), height(height)
 {
     GLERRORCHECK();
@@ -577,61 +749,29 @@ Frender::GLTools::Framebuffer::Framebuffer(int width, int height, const std::vec
     int c = 0;
     for (auto i : textures)
     {
-        // Get type of texture
-        uint32_t type;
-        uint32_t val;
-        switch (textures[c])
-        {
-        case (RGB8): type = GL_RGB; val = GL_UNSIGNED_BYTE; break;
-        case (RGBA8): type = GL_RGBA; val = GL_UNSIGNED_BYTE; break;
-        case (RGBA16): type = GL_RGBA16F; val = GL_FLOAT; break;
-        }
-
+        changeTexture(c, i.first, i.second);
         GLERRORCHECK();
-
-        // Create texture for color buffer
-        uint32_t tx;
-        glGenTextures(1, &tx);
-        glBindTexture(GL_TEXTURE_2D, tx);
-
-        GLERRORCHECK();
-
-        // Allocate space (but don't fill it)
-        glTexImage2D(GL_TEXTURE_2D, 0, type, width, height, 0, GL_RGBA, val, NULL);
-        // glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
-        
-        GLERRORCHECK();
-
-        // Set parameters
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-
-        // Attach color texture to framebuffer
-        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0 + c, GL_TEXTURE_2D, tx, 0);
-        
-        GLERRORCHECK();
-
-        // Add it to the array of enums
-        gl_enums[c] = GL_COLOR_ATTACHMENT0 + c;
-        colors[c] = tx;
         c++;
     }
 
     // Create Renderbuffer for depth and stencil buffers
     // We may want to change this later
     glGenRenderbuffers(1, &depth_stencil);
+    GLERRORCHECK();
 
     glBindRenderbuffer(GL_RENDERBUFFER, depth_stencil);
+    GLERRORCHECK();
     glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH24_STENCIL8, width, height);
+    GLERRORCHECK();
     // glBindRenderbuffer(GL_RENDERBUFFER, 0);
 
     // Attach depth and stencil renderbuffer to fbo
     glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, GL_RENDERBUFFER, depth_stencil);
+    GLERRORCHECK();
 
     // Tell OpenGL how many buffers there are
     glDrawBuffers(gl_enums.size(), &gl_enums[0]);
+    GLERRORCHECK();
 
     // Check to make sure it worked correctly
     auto n = glCheckFramebufferStatus(GL_FRAMEBUFFER);
@@ -653,6 +793,100 @@ Frender::GLTools::Framebuffer::Framebuffer(int width, int height, const std::vec
 
     // Normally, I wouldn't bother, but this seems important
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
+    GLERRORCHECK();
+}
+
+Frender::GLTools::Texture Frender::GLTools::Framebuffer::changeTexture(int c, Frender::GLTools::TextureVarieties vari, Frender::GLTools::TextureTypes typ)
+{
+    glBindFramebuffer(GL_FRAMEBUFFER, framebuffer);
+
+    // Get type of texture
+    uint32_t type;
+    uint32_t val;
+    uint32_t variety;
+    uint32_t variety2;
+    switch (typ)
+    {
+    case (RGB8): type = GL_RGB; val = GL_UNSIGNED_BYTE; break;
+    case (RGBA8): type = GL_RGBA; val = GL_UNSIGNED_BYTE; break;
+    case (RGBA16): type = GL_RGBA16F; val = GL_FLOAT; break;
+    }
+
+    switch (vari)
+    {
+    case (Texture2D): variety = GL_TEXTURE_2D; variety2 = variety; break;
+    default:
+        variety2 = GL_TEXTURE_CUBE_MAP_POSITIVE_X + vari - 1; break;
+        variety = GL_TEXTURE_CUBE_MAP;
+    }
+
+    GLERRORCHECK();
+
+    // Create texture for color buffer
+    uint32_t tx;
+    glGenTextures(1, &tx);
+    glBindTexture(variety, tx);
+
+    GLERRORCHECK();
+
+    // Allocate space (but don't fill it)
+    glTexImage2D(variety, 0, type, width, height, 0, GL_RGBA, val, NULL);
+
+    GLERRORCHECK();
+
+    // Set parameters
+    glTexParameteri(variety, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(variety, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glTexParameteri(variety, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(variety, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+
+    if (vari != Texture2D)
+    {
+        glTexParameteri(variety, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
+    }
+
+    // Attach color texture to framebuffer
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0 + c, variety2, tx, 0);
+    GLERRORCHECK();
+
+    // Add it to the array of enums
+    gl_enums[c] = GL_COLOR_ATTACHMENT0 + c;
+    colors[c] = tx;
+
+    return tx;
+}
+
+void Frender::GLTools::Framebuffer::setTexture(int index, TextureVarieties vari, TextureTypes typ, Texture tx)
+{
+
+    glBindFramebuffer(GL_FRAMEBUFFER, framebuffer);
+    GLERRORCHECK();
+
+    // Get type of texture
+    uint32_t type;
+    uint32_t val;
+    uint32_t variety;
+    uint32_t variety2;
+    switch (typ)
+    {
+    case (RGB8): type = GL_RGB; val = GL_UNSIGNED_BYTE; break;
+    case (RGBA8): type = GL_RGBA; val = GL_UNSIGNED_BYTE; break;
+    case (RGBA16): type = GL_RGBA16F; val = GL_FLOAT; break;
+    }
+
+    switch (vari)
+    {
+    case (Texture2D): variety = GL_TEXTURE_2D; variety2 = variety; break;
+    default:
+        variety = GL_TEXTURE_CUBE_MAP;
+        variety2 = GL_TEXTURE_CUBE_MAP_POSITIVE_X + vari - 1; break;
+    }
+
+    glBindTexture(variety, tx.handle);
+    GLERRORCHECK();
+
+    // Attach color texture to framebuffer
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0 + index, variety2, tx.handle, 0);
     GLERRORCHECK();
 }
 

@@ -7,6 +7,8 @@
 
 void Frender::Renderer::bulkRender()
 {
+
+    glViewport(0, 0, width, height);
 #ifndef FRENDER_NO_DEFERRED
     // Stage 1: Geometry pass
     stage2_fbo.enable();
@@ -35,7 +37,8 @@ void Frender::Renderer::bulkRender()
     for (int i = 4; i--; ) frustum_planes[5][i]    = fcvp[i][3] - fcvp[i][2];
 
     stage1_bulk_shader.enable();
-    
+    // stage1_bulk_shader.setUniform(stage1_bulk_shader.getUniformLocation("cam_pos"), camera * glm::vec4(0, 0, 0, 1));
+
     geometryPass(vp);
 
     // stage2_fbo.disable();
@@ -153,6 +156,30 @@ void Frender::Renderer::bulkRender()
     GLERRORCHECK();
     litRender(vp);
     GLERRORCHECK();
+
+    // Render skybox
+    if (has_skybox)
+    {
+        // glDisable(GL_DEPTH_TEST);
+        glDepthMask(GL_FALSE);
+        glDepthFunc(GL_LEQUAL);
+        glCullFace(GL_FRONT);
+
+        skybox_shader.enable();
+
+        // Remove transformations
+        glm::mat4 special_vp = projection * glm::mat4(glm::mat3(inv_camera));
+        skybox_shader.setUniform(skybox_vp_loc, special_vp);
+
+        skybox_textures.enable();
+        cube.enable();
+        glDrawElements(GL_TRIANGLES, cube.num_indices, GL_UNSIGNED_INT, 0);
+
+        glDepthMask(GL_TRUE);
+        glDepthFunc(GL_LESS);
+        glCullFace(GL_BACK);
+        // glEnable(GL_DEPTH_TEST);
+    }
 
     stage3_fbo.disable();
 

@@ -16,6 +16,10 @@
 #include "Frender/Shaders/UnlitFrag.h"
 #include "Frender/Shaders/LitVert.h"
 #include "Frender/Shaders/LitFrag.h"
+#include "Frender/Shaders/EquiToCubemapVert.h"
+#include "Frender/Shaders/EquiToCubemapFrag.h"
+#include "Frender/Shaders/SkyboxFrag.h"
+#include "Frender/Shaders/SkyboxVert.h"
 #include "Frender/Shaders/Stage2Vert.h"
 #include "Frender/Shaders/Stage2Frag.h"
 #include "Frender/Shaders/Stage2FragD.h"
@@ -37,6 +41,11 @@ Frender::Renderer::Renderer(int width, int height)
 
     stage3fxaa_shader = GLTools::Shader(Stage3VertSrc, Stage3FxaaFragSrc);
     bloom_exposure_loc_fxaa = stage3_shader.getUniformLocation("bloom_exposure");
+
+    equiToCubemap_shader = GLTools::Shader(EquiToCubemapVertSrc, EquiToCubemapFragSrc);
+    skybox_shader = GLTools::Shader(SkyboxVertSrc, SkyboxFragSrc);
+    skybox_textures = GLTools::TextureManager(skybox_shader);
+    skybox_vp_loc = skybox_shader.getUniformLocation("vp");
 
     GLERRORCHECK();
 #ifndef FLUX_NO_DEFFERED
@@ -84,6 +93,60 @@ Frender::Renderer::Renderer(int width, int height)
     };
 
     plane = GLTools::MeshBuffer(vertices, indices);
+
+    // Create cube mesh
+    std::vector<GLTools::Vertex> c_vertices = {
+            // back face
+            {-1.0f, -1.0f, -1.0f,  0.0f,  0.0f, -1.0f, 0.0f, 0.0f}, // bottom-left
+            {1.0f,  1.0f, -1.0f,  0.0f,  0.0f, -1.0f, 1.0f, 1.0f}, // top-right
+            {1.0f, -1.0f, -1.0f,  0.0f,  0.0f, -1.0f, 1.0f, 0.0f}, // bottom-right         
+            {1.0f,  1.0f, -1.0f,  0.0f,  0.0f, -1.0f, 1.0f, 1.0f}, // top-right
+            {-1.0f, -1.0f, -1.0f,  0.0f,  0.0f, -1.0f, 0.0f, 0.0f}, // bottom-left
+            {-1.0f,  1.0f, -1.0f,  0.0f,  0.0f, -1.0f, 0.0f, 1.0f}, // top-left
+            // front face
+            {-1.0f, -1.0f,  1.0f,  0.0f,  0.0f,  1.0f, 0.0f, 0.0f}, // bottom-left
+             {1.0f, -1.0f,  1.0f,  0.0f,  0.0f,  1.0f, 1.0f, 0.0f}, // bottom-right
+             {1.0f,  1.0f,  1.0f,  0.0f,  0.0f,  1.0f, 1.0f, 1.0f}, // top-right
+            { 1.0f,  1.0f,  1.0f,  0.0f,  0.0f,  1.0f, 1.0f, 1.0f}, // top-right
+            {-1.0f,  1.0f,  1.0f,  0.0f,  0.0f,  1.0f, 0.0f, 1.0f}, // top-left
+            {-1.0f, -1.0f,  1.0f,  0.0f,  0.0f,  1.0f, 0.0f, 0.0f}, // bottom-left
+            // left face
+            {-1.0f,  1.0f,  1.0f, -1.0f,  0.0f,  0.0f, 1.0f, 0.0f}, // top-right
+            {-1.0f,  1.0f, -1.0f, -1.0f,  0.0f,  0.0f, 1.0f, 1.0f}, // top-left
+            {-1.0f, -1.0f, -1.0f, -1.0f,  0.0f,  0.0f, 0.0f, 1.0f}, // bottom-left
+            {-1.0f, -1.0f, -1.0f, -1.0f,  0.0f,  0.0f, 0.0f, 1.0f}, // bottom-left
+            {-1.0f, -1.0f,  1.0f, -1.0f,  0.0f,  0.0f, 0.0f, 0.0f}, // bottom-right
+            {-1.0f,  1.0f,  1.0f, -1.0f,  0.0f,  0.0f, 1.0f, 0.0f}, // top-right
+            // right face
+            { 1.0f,  1.0f,  1.0f,  1.0f,  0.0f,  0.0f, 1.0f, 0.0f}, // top-left
+             {1.0f, -1.0f, -1.0f,  1.0f,  0.0f,  0.0f, 0.0f, 1.0f}, // bottom-right
+             {1.0f,  1.0f, -1.0f,  1.0f,  0.0f,  0.0f, 1.0f, 1.0f}, // top-right         
+             {1.0f, -1.0f, -1.0f,  1.0f,  0.0f,  0.0f, 0.0f, 1.0f}, // bottom-right
+            { 1.0f,  1.0f,  1.0f,  1.0f,  0.0f,  0.0f, 1.0f, 0.0f}, // top-left
+            { 1.0f, -1.0f,  1.0f,  1.0f,  0.0f,  0.0f, 0.0f, 0.0f}, // bottom-left     
+            // bottom face
+            {-1.0f, -1.0f, -1.0f,  0.0f, -1.0f,  0.0f, 0.0f, 1.0f}, // top-right
+            { 1.0f, -1.0f, -1.0f,  0.0f, -1.0f,  0.0f, 1.0f, 1.0f}, // top-left
+            { 1.0f, -1.0f,  1.0f,  0.0f, -1.0f,  0.0f, 1.0f, 0.0f}, // bottom-left
+            { 1.0f, -1.0f,  1.0f,  0.0f, -1.0f,  0.0f, 1.0f, 0.0f}, // bottom-left
+            {-1.0f, -1.0f,  1.0f,  0.0f, -1.0f,  0.0f, 0.0f, 0.0f}, // bottom-right
+            {-1.0f, -1.0f, -1.0f,  0.0f, -1.0f,  0.0f, 0.0f, 1.0f}, // top-right
+            // top face
+            {-1.0f,  1.0f, -1.0f,  0.0f,  1.0f,  0.0f, 0.0f, 1.0f}, // top-left
+             {1.0f,  1.0f , 1.0f,  0.0f,  1.0f,  0.0f, 1.0f, 0.0f}, // bottom-right
+            { 1.0f,  1.0f, -1.0f,  0.0f,  1.0f,  0.0f, 1.0f, 1.0f}, // top-right     
+             {1.0f,  1.0f,  1.0f,  0.0f,  1.0f,  0.0f, 1.0f, 0.0f}, // bottom-right
+            {-1.0f,  1.0f, -1.0f,  0.0f,  1.0f,  0.0f, 0.0f, 1.0f}, // top-left
+            {-1.0f,  1.0f,  1.0f,  0.0f,  1.0f,  0.0f, 0.0f, 0.0f}  // bottom-left        
+    };
+
+    std::vector<uint32_t> c_indices;
+    for (int i = 0; i < c_vertices.size(); i++)
+    {
+        c_indices.push_back(i);
+    }
+
+    cube = GLTools::MeshBuffer(c_vertices, c_indices);
 
 #ifndef FLUX_NO_DEFFERED
     // Create light sphere
@@ -184,8 +247,8 @@ void Frender::Renderer::setRenderResolution(int new_width, int new_height)
     }
 
     stage3_fbo = GLTools::Framebuffer(width, height, {
-        GLTools::TextureTypes::RGBA16,
-        GLTools::TextureTypes::RGBA16
+        {GLTools::Texture2D, GLTools::TextureTypes::RGBA16},
+        {GLTools::Texture2D, GLTools::TextureTypes::RGBA16}
     });
     GLERRORCHECK();
     stage3_tex = GLTools::TextureManager(stage3_shader);
@@ -199,11 +262,11 @@ void Frender::Renderer::setRenderResolution(int new_width, int new_height)
     if (bloom_res_scale != 0)
     {
         bloom_fbo1 = GLTools::Framebuffer(bloom_res_scale * width, bloom_res_scale * height, {
-            GLTools::TextureTypes::RGBA16
+            {GLTools::Texture2D, GLTools::TextureTypes::RGBA16}
         });
 
         bloom_fbo2 = GLTools::Framebuffer(bloom_res_scale * width, bloom_res_scale * height, {
-            GLTools::TextureTypes::RGBA16
+            {GLTools::Texture2D, GLTools::TextureTypes::RGBA16}
         });
 
         bloom_tex1 = GLTools::TextureManager(bloom_shader);
@@ -224,9 +287,9 @@ void Frender::Renderer::setRenderResolution(int new_width, int new_height)
     }
     
     stage2_fbo = GLTools::Framebuffer(width, height, {
-        GLTools::TextureTypes::RGBA8,
-        GLTools::TextureTypes::RGBA16,
-        GLTools::TextureTypes::RGBA16
+        {GLTools::Texture2D, GLTools::TextureTypes::RGBA8},
+        {GLTools::Texture2D, GLTools::TextureTypes::RGBA16},
+        {GLTools::Texture2D, GLTools::TextureTypes::RGBA16}
     });
     GLERRORCHECK();
     stage2_tex = GLTools::TextureManager(stage2_light_shader);
@@ -255,13 +318,13 @@ uint32_t Frender::Renderer::createMaterial()
     {
         stage1_bulk_shader = GLTools::Shader(BulkStage1VertSrc, BulkStage1FragSrc);
     }
-#ifndef FRENDER_NO_DEFFERED
+#ifndef FRENDER_NO_DEFERED
     mat.shader = stage1_bulk_shader;
 #else
     mat.shader = lit_shader;
 #endif
     mat.type = Bulk;
-#ifndef FRENDER_NO_DEFFERED
+#ifndef FRENDER_NO_DEFERED
     mat.uniforms = GLTools::UniformBuffer(stage1_bulk_shader, "Material", {
 #else
     mat.uniforms = GLTools::UniformBuffer(lit_shader, "Material", {
@@ -274,7 +337,7 @@ uint32_t Frender::Renderer::createMaterial()
         {"has_roughness_map", GLTools::Int, 0},
         {"has_metal_map", GLTools::Int, 0}
     });
-#ifndef FRENDER_NO_DEFFERED
+#ifndef FRENDER_NO_DEFERED
     mat.textures = GLTools::TextureManager(stage1_bulk_shader);
 #else
     mat.textures = GLTools::TextureManager(lit_shader);
@@ -396,7 +459,7 @@ Frender::MeshRef Frender::Renderer::createMesh(const std::vector<Vertex>& vertic
 
 Frender::RenderObjectRef Frender::Renderer::createRenderObject(MeshRef mesh, uint32_t mat, glm::mat4 transform)
 {
-#ifdef FRENDER_NO_DEFFERED
+#ifdef FRENDER_NO_DEFERED
     return createLitRenderObject(mesh, mat, transform);
 #else
     if (getMaterial(mat)->shader.program != stage1_bulk_shader.program)
@@ -649,5 +712,16 @@ glm::vec3 Frender::Renderer::addExtrema(Extrema e)
     }
 
     return output;
+}
+
+void Frender::Renderer::setSkybox(int width, int height, float* data)
+{
+    auto tx = Texture(width, height, data);
+    // glPixelStoref(GL_UNPACK_ALIGNMENT, 1);
+    sky_cubemap = GLTools::equirectangularToCubemap(equiToCubemap_shader, tx);
+    tx.destroy();
+    skybox_textures.set("skybox", sky_cubemap, GLTools::CUBEMAP_PX);
+
+    has_skybox = true;
 }
 // TODO: Free memory allocated by the buffers, and generally clean up better

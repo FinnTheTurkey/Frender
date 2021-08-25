@@ -30,8 +30,8 @@ namespace Frender::GLTools
         Vertex(float a, float b, float c,
             float nx, float ny, float nz,
             float tx, float ty,
-            float tax, float tay, float taz,
-            float btax, float btay, float btaz
+            float tax=0, float tay=0, float taz=0,
+            float btax=0, float btay=0, float btaz=0
             )
         : position(a, b, c),
         normals(nx, ny, nz),
@@ -295,6 +295,7 @@ namespace Frender::GLTools
         void setUniform(uint32_t loc, int value);
         void setUniform(uint32_t loc, float value);
         void setUniform(uint32_t loc, glm::vec3 value);
+        void setUniform(uint32_t loc, glm::mat4 value);
 
         bool created;
         uint32_t program;
@@ -370,6 +371,17 @@ namespace Frender::GLTools
         std::vector<_UniformRow> data;
     };
 
+    enum TextureVarieties
+    {
+        Texture2D = 0, 
+        CUBEMAP_PX = 1,
+        CUBEMAP_NX = 2,
+        CUBEMAP_PY = 3,
+        CUBEMAP_NY = 4,
+        CUBEMAP_PZ = 5,
+        CUBEMAP_NZ = 6,
+    };
+
     /**
     Wrapper class for an OpenGL Texture. All textures must be 8 bit RGBA
     */
@@ -379,6 +391,7 @@ namespace Frender::GLTools
         Texture() {};
         Texture(uint32_t handle): handle(handle) {}
         Texture(int width, int height, const unsigned char* data, bool mipmap = false);
+        Texture(int width, int height, const float* data, bool mipmap = false);
 
         void destroy();
 
@@ -387,12 +400,17 @@ namespace Frender::GLTools
         
     };
 
+    Texture equirectangularToCubemap(Shader shader, Texture equi);
+
+    Texture createCubemap(int width, int height);
+
     struct _TexStore
     {
         bool exists;
         std::string name;
         Texture tex;
         uint32_t location;
+        TextureVarieties vari;
     };
 
     /**
@@ -405,6 +423,7 @@ namespace Frender::GLTools
         TextureManager(Shader shader) : shader(shader), size(0) {}
 
         void set(const std::string& name, Texture tex);
+        void set(const std::string& name, Texture tex, TextureVarieties vari);
         void set(int index, Texture tex);
 
         void enable();
@@ -421,6 +440,7 @@ namespace Frender::GLTools
         RGB8, RGBA8, RGBA16
     };
 
+
     /**
     Framebuffer class
     */
@@ -428,9 +448,11 @@ namespace Frender::GLTools
     {
     public:
         Framebuffer() {};
-        Framebuffer(int width, int height, const std::vector<TextureTypes>& textures);
+        Framebuffer(int width, int height, const std::vector<std::pair<TextureVarieties, TextureTypes>>& textures);
 
         std::vector<Texture> getTexture();
+        Texture changeTexture(int index, TextureVarieties vari, TextureTypes type);
+        void setTexture(int index, TextureVarieties vari, TextureTypes type, Texture tx);
 
         void enable();
         void disable();
