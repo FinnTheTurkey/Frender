@@ -1,6 +1,5 @@
 // Auto generated file.
 static const char Stage3VertSrc[] = "#version 330 core\n\
-#define GLSLIFY 1\n\
 layout (location = 0) in vec3 aPos;\n\
 layout (location = 1) in vec3 normals;\n\
 layout (location = 2) in vec2 tex_coord;\n\

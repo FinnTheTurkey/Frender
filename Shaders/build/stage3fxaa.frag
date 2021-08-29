@@ -1,5 +1,4 @@
 #version 330 core
-#define GLSLIFY 1
 out vec4 FragColor;
 
 in vec2 tex_coords;
@@ -102,6 +101,7 @@ vec4 fxaa(sampler2D tex, vec2 fragCoord, vec2 resolution,
         color = vec4(rgbB, texColor.a);
     return color;
 }
+
 
 void texcoords(vec2 fragCoord, vec2 resolution,
 			out vec2 v_rgbNW, out vec2 v_rgbNE,

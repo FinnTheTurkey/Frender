@@ -1,6 +1,5 @@
 // Auto generated file.
 static const char EquiToCubemapVertSrc[] = "#version 330 core\n\
-#define GLSLIFY 1\n\
 layout (location = 0) in vec3 aPos;\n\
 \n\
 out vec3 localPos;\n\

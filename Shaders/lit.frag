@@ -29,6 +29,8 @@ uniform sampler2D metal_map;
 uniform sampler2D normal_map;
 uniform sampler2D roughness_map;
 
+uniform samplerCube irradiance_map;
+
 // uniform int width;
 // uniform int height;
 uniform vec3 cam_pos;
@@ -36,7 +38,7 @@ uniform vec3 cam_pos;
 in vec4 lights_part1;
 in vec4 lights_part2;
 
-#pragma glslify: reflectanceEquation = require(./PBRLighting.glsl)
+#include "PBRLighting.glsl"
 
 void main()
 {
@@ -101,6 +103,8 @@ void main()
                     world_pos, light_color_type[int(lights_part2[i])].xyz, rness, mness, light_pos_dir_rad[int(lights_part2[i])].w);
         }
     }
+
+    end_result += computeAmbient(N, V, F0, rness, colour.xyz, texture(irradiance_map, N).xyz);
 
     FragColor = vec4(end_result, 1);
     // FragColor = vec4(0.01, 0.01, 0.01, 1);

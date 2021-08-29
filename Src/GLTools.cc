@@ -682,20 +682,34 @@ Frender::GLTools::Texture Frender::GLTools::equirectangularToCubemap(Shader shad
 
 void Frender::GLTools::TextureManager::set(const std::string &name, Texture tex)
 {
-    GLERRORCHECK();
-    uint32_t loc = glGetUniformLocation(shader.program, name.c_str());
-    GLERRORCHECK();
-    data[size] = {true, name, tex, loc, Texture2D};
-    size ++;
+    set(name, tex, Texture2D);
 }
 
 void Frender::GLTools::TextureManager::set(const std::string &name, Texture tex, TextureVarieties vari)
 {
-    GLERRORCHECK();
-    uint32_t loc = glGetUniformLocation(shader.program, name.c_str());
-    GLERRORCHECK();
-    data[size] = {true, name, tex, loc, vari};
-    size ++;
+    // Make sure this texture doesn't already exist
+    int p = -1;
+    for (int i = 0; i < data.size(); i++)
+    {
+        if (data[i].name == name)
+        {
+            p = i;
+            break;
+        }
+    }
+
+    if (p == -1)
+    {
+        GLERRORCHECK();
+        uint32_t loc = glGetUniformLocation(shader.program, name.c_str());
+        GLERRORCHECK();
+        data[size] = {true, name, tex, loc, vari};
+        size ++;
+    }
+    else
+    {
+        set(p, tex);
+    }
 }
 
 void Frender::GLTools::TextureManager::set(int index, Texture tex)

@@ -18,11 +18,13 @@
 #include "Frender/Shaders/LitFrag.h"
 #include "Frender/Shaders/EquiToCubemapVert.h"
 #include "Frender/Shaders/EquiToCubemapFrag.h"
+#include "Frender/Shaders/EquiToCubemapFrag_convolute.h"
 #include "Frender/Shaders/SkyboxFrag.h"
 #include "Frender/Shaders/SkyboxVert.h"
 #include "Frender/Shaders/Stage2Vert.h"
 #include "Frender/Shaders/Stage2Frag.h"
 #include "Frender/Shaders/Stage2FragD.h"
+#include "Frender/Shaders/Stage2FragA.h"
 #include "Frender/Shaders/Stage3Vert.h"
 #include "Frender/Shaders/Stage3Frag.h"
 #include "Frender/Shaders/Stage3FxaaFrag.h"
@@ -43,9 +45,13 @@ Frender::Renderer::Renderer(int width, int height)
     bloom_exposure_loc_fxaa = stage3_shader.getUniformLocation("bloom_exposure");
 
     equiToCubemap_shader = GLTools::Shader(EquiToCubemapVertSrc, EquiToCubemapFragSrc);
+    equiToCubemap_convolution_shader = GLTools::Shader(EquiToCubemapVertSrc, EquiToCubemap_convoluteFragSrc);
     skybox_shader = GLTools::Shader(SkyboxVertSrc, SkyboxFragSrc);
     skybox_textures = GLTools::TextureManager(skybox_shader);
     skybox_vp_loc = skybox_shader.getUniformLocation("vp");
+    
+    int* dummy = new int(1);
+    dummy_texture = GLTools::Texture(1, 1, (unsigned char*)dummy, false);
 
     GLERRORCHECK();
 #ifndef FLUX_NO_DEFFERED
@@ -64,6 +70,11 @@ Frender::Renderer::Renderer(int width, int height)
     dlight_uniforms.color = stage2_dlight_shader.getUniformLocation("light_color");
     dlight_uniforms.cam_pos = stage2_dlight_shader.getUniformLocation("cam_pos");
     dlight_uniforms.light_pos = stage2_dlight_shader.getUniformLocation("light_direction");
+
+    stage2_alight_shader = GLTools::Shader(Stage3VertSrc, Stage2FragASrc);
+    alight_uniforms.width = stage2_alight_shader.getUniformLocation("width");
+    alight_uniforms.height = stage2_alight_shader.getUniformLocation("height");
+    alight_uniforms.cam_pos = stage2_alight_shader.getUniformLocation("cam_pos");
 #endif
     // Create forward shaders
     unlit = GLTools::Shader(UnlitVertSrc, UnlitFragSrc);
@@ -305,6 +316,14 @@ void Frender::Renderer::setRenderResolution(int new_width, int new_height)
     stage2_texd.set("NormalMetal", stage2_fbo.getTexture()[1]);
     stage2_texd.set("position", stage2_fbo.getTexture()[2]);
     GLERRORCHECK();
+
+    alight_tx = GLTools::TextureManager(stage2_alight_shader);
+    GLERRORCHECK();
+    alight_tx.set("ColorRoughness", stage2_fbo.getTexture()[0]);
+    alight_tx.set("NormalMetal", stage2_fbo.getTexture()[1]);
+    alight_tx.set("position", stage2_fbo.getTexture()[2]);
+    alight_tx.set("irradiance_map", irradiance_cubemap, GLTools::CUBEMAP_PX);
+    GLERRORCHECK();
 #endif
 
     has_stage3 = true;
@@ -312,23 +331,20 @@ void Frender::Renderer::setRenderResolution(int new_width, int new_height)
 
 uint32_t Frender::Renderer::createMaterial()
 {
+
+#ifdef FRENDER_NO_DEFERED
+    return createLitMaterial();
+#endif
+
     Material mat;
 
     if (!stage1_bulk_shader.created)
     {
         stage1_bulk_shader = GLTools::Shader(BulkStage1VertSrc, BulkStage1FragSrc);
     }
-#ifndef FRENDER_NO_DEFERED
     mat.shader = stage1_bulk_shader;
-#else
-    mat.shader = lit_shader;
-#endif
     mat.type = Bulk;
-#ifndef FRENDER_NO_DEFERED
     mat.uniforms = GLTools::UniformBuffer(stage1_bulk_shader, "Material", {
-#else
-    mat.uniforms = GLTools::UniformBuffer(lit_shader, "Material", {
-#endif
         {"color", GLTools::Vec3, glm::vec3(1, 0, 0)},
         {"roughness", GLTools::Float, 0.4f},
         {"metalness", GLTools::Float, 0.0f},
@@ -337,11 +353,11 @@ uint32_t Frender::Renderer::createMaterial()
         {"has_roughness_map", GLTools::Int, 0},
         {"has_metal_map", GLTools::Int, 0}
     });
-#ifndef FRENDER_NO_DEFERED
     mat.textures = GLTools::TextureManager(stage1_bulk_shader);
-#else
-    mat.textures = GLTools::TextureManager(lit_shader);
-#endif
+    mat.textures.set("diffuse_map", dummy_texture);
+    mat.textures.set("metal_map", dummy_texture);
+    mat.textures.set("normal_map", dummy_texture);
+    mat.textures.set("roughness_map", dummy_texture);
     materials.push_back(mat);
 
     return materials.size()-1;
@@ -363,6 +379,11 @@ uint32_t Frender::Renderer::createMaterial(GLTools::Shader shader)
         {"has_metal_map", GLTools::Int, 0}
     });
     mat.textures = GLTools::TextureManager(shader);
+    mat.textures.set("irradiance_map", irradiance_cubemap, GLTools::CUBEMAP_PX);
+    mat.textures.set("diffuse_map", dummy_texture);
+    mat.textures.set("metal_map", dummy_texture);
+    mat.textures.set("normal_map", dummy_texture);
+    mat.textures.set("roughness_map", dummy_texture);
     materials.push_back(mat);
 
     return materials.size()-1;
@@ -380,6 +401,7 @@ uint32_t Frender::Renderer::createUnlitMaterial(float emmisive)
         {"has_diffuse_map", GLTools::Int, 0},
     });
     mat.textures = GLTools::TextureManager(unlit);
+    mat.textures.set("diffuse_map", dummy_texture);
     materials.push_back(mat);
 
     return materials.size()-1;
@@ -483,6 +505,11 @@ Frender::RenderObjectRef Frender::Renderer::createUnlitRenderObject(GLTools::Sha
 
 Frender::RenderObjectRef Frender::Renderer::createLitRenderObject(GLTools::Shader shader, MeshRef mesh, uint32_t mat, glm::mat4 transform)
 {
+    if (getMaterial(mat)->type == Bulk)
+    {
+        std::cerr << "Lit render objects require Detail materials\n";
+        return {};
+    }
 
     auto obj = _addRenderObject<ROInfoLit, ROInfoGPULit>(flit_scene_tree, {0, transform}, {transform, transform}, shader, mesh, mat, transform, 10);
     obj.type = ForwardLit;
@@ -717,8 +744,15 @@ glm::vec3 Frender::Renderer::addExtrema(Extrema e)
 void Frender::Renderer::setSkybox(int width, int height, float* data)
 {
     auto tx = Texture(width, height, data);
-    // glPixelStoref(GL_UNPACK_ALIGNMENT, 1);
+    // Normal one for skybox
     sky_cubemap = GLTools::equirectangularToCubemap(equiToCubemap_shader, tx);
+
+    // Convoluted one for irradience
+    irradiance_cubemap = GLTools::equirectangularToCubemap(equiToCubemap_convolution_shader, tx);
+
+    // Add it to all the textures
+    alight_tx.set("irradiance_map", irradiance_cubemap, GLTools::CUBEMAP_PX);
+
     tx.destroy();
     skybox_textures.set("skybox", sky_cubemap, GLTools::CUBEMAP_PX);
 

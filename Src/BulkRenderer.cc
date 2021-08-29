@@ -9,7 +9,8 @@ void Frender::Renderer::bulkRender()
 {
 
     glViewport(0, 0, width, height);
-#ifndef FRENDER_NO_DEFERRED
+    auto vp = projection * inv_camera;
+#ifndef FRENDER_NO_DEFERED
     // Stage 1: Geometry pass
     stage2_fbo.enable();
     GLERRORCHECK();
@@ -24,7 +25,6 @@ void Frender::Renderer::bulkRender()
     glCullFace(GL_BACK);
     GLERRORCHECK();
 
-    auto vp = projection * inv_camera;
     auto fcvp = vp;
 
     // Create frustum planes - this probably won't work
@@ -89,6 +89,17 @@ void Frender::Renderer::bulkRender()
         glDrawElements(GL_TRIANGLES, plane.num_indices, GL_UNSIGNED_INT, 0);
     }
 
+    // Ambient/cubemap lighting
+    stage2_alight_shader.enable();
+    alight_tx.enable();
+
+    // Set important uniforms
+    stage2_alight_shader.setUniform(alight_uniforms.width, width);
+    stage2_alight_shader.setUniform(alight_uniforms.height, height);
+    stage2_alight_shader.setUniform(alight_uniforms.cam_pos, camera * glm::vec4(0, 0, 0, 1));
+
+    glDrawElements(GL_TRIANGLES, plane.num_indices, GL_UNSIGNED_INT, 0);
+
     // Use depth testing and depth buffer for lights that don't effect everything
     // GLTools::transferDepthBuffer(&stage2_fbo, &stage3_fbo, width, height);
     // glEnable(GL_DEPTH_TEST);
@@ -144,6 +155,10 @@ void Frender::Renderer::bulkRender()
     glDepthMask(GL_TRUE);
     glDepthFunc(GL_LESS);
     // glCullFace(GL_FRONT);
+#else
+    stage3_fbo.enable();
+    glClearColor(0, 1, 0, 1.0f);
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 #endif
 
     // Unlit/Forward rendered objects
@@ -330,7 +345,10 @@ void Frender::Renderer::litRender(glm::mat4 vp)
         {
             mat.mat.uniforms.enable(0);
             GLERRORCHECK();
+            
+            getMaterial(mat.mat.mat_ref)->textures.set(0, irradiance_cubemap);
             getMaterial(mat.mat.mat_ref)->textures.enable();
+
             GLERRORCHECK();
 
             for (auto mesh : mat.meshes)

@@ -1,9 +1,9 @@
 // Auto generated file.
 static const char BulkStage1FragSrc[] = "#version 330 core\n\
-#define GLSLIFY 1\n\
 layout (location = 0) out vec4 ColorRoughness;\n\
 layout (location = 1) out vec4 NormalMetallic;\n\
 layout (location = 2) out vec3 position;\n\
+\n\
 \n\
 in vec2 tex_coords;\n\
 in vec3 normal;\n\

@@ -16,7 +16,7 @@ uniform vec3 light_color;
 uniform vec3 cam_pos;
 uniform vec3 light_direction;
 
-#pragma glslify: reflectanceEquation = require(./PBRLighting.glsl)
+#include "PBRLighting.glsl"
 
 void main()
 {
@@ -39,6 +39,8 @@ void main()
     vec3 end_result = reflectanceEquation(1.0, normal, V, F0, color.xyz,
                 light_direction, pos,
                 light_color, roughness, metal, 0);
+
+    // end_result += 
 
     FragColor = vec4(end_result, 1);
     // FragColor = vec4(0, 1, 0, 1);

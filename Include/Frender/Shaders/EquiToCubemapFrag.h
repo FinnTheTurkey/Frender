@@ -1,6 +1,5 @@
 // Auto generated file.
 static const char EquiToCubemapFragSrc[] = "#version 330 core\n\
-#define GLSLIFY 1\n\
 out vec4 FragColor;\n\
 in vec3 localPos;\n\
 \n\

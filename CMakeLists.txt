@@ -6,6 +6,9 @@ enable_testing()
 
 set(CMAKE_CXX_STANDARD 17)
 
+# Include shader parser
+include(CMake/ShaderParser.cmake)
+
 ####################################################################################################
 # This function converts any file into C/C++ source code.
 # Example:
@@ -17,15 +20,16 @@ set(CMAKE_CXX_STANDARD 17)
 ####################################################################################################
 
 function(embed_shader resource_file_name source_file_name variable_name)
-    # Run GLSLify if possible
     get_filename_component(og_path "Shaders/${resource_file_name}" ABSOLUTE)
     get_filename_component(newg_path "Shaders/build/${resource_file_name}" ABSOLUTE)
 
-    if (FOUND_GLSLIFY)
-        message("-- Compiling shader: ${resource_file_name}")
-        execute_process(COMMAND "glslify" "${og_path}" "-o" "${newg_path}")
-    endif()
+    # Compile shaders
+    parse_includes_file("${og_path}" "${newg_path}")
 
+    # Check for errors
+    glsl_validate("${newg_path}")
+
+    # Write to C source file
     file(READ "${newg_path}" text_content)
 
     string(REPLACE "\"" "\\\"" content "${text_content}")
@@ -39,24 +43,13 @@ function(embed_shader resource_file_name source_file_name variable_name)
 
 endfunction()
 
-# Check for GLSLify
-message("-- Checking for GLSLify")
-execute_process(COMMAND "glslify" "-v"
-                RESULT_VARIABLE result)
-# message(${result})
-if (result EQUAL "0")
-    set(FOUND_GLSLIFY ON)
-    message("-- Found GLSLify")
-else()
-    message("-- Could not find glslify; shaders will not be compiled")
-endif()
-
 embed_shader("stage1.vert" "Stage1Vert.h" "BulkStage1VertSrc")
 embed_shader("stage1.frag" "Stage1Frag.h" "BulkStage1FragSrc")
 
 embed_shader("stage2light.vert" "Stage2Vert.h" "Stage2VertSrc")
 embed_shader("stage2light.frag" "Stage2Frag.h" "Stage2FragSrc")
 embed_shader("stage2directionallight.frag" "Stage2FragD.h" "Stage2FragDSrc")
+embed_shader("stage2ambient.frag" "Stage2FragA.h" "Stage2FragASrc")
 
 embed_shader("stage3.vert" "Stage3Vert.h" "Stage3VertSrc")
 embed_shader("stage3.frag" "Stage3Frag.h" "Stage3FragSrc")
@@ -71,10 +64,11 @@ embed_shader("lit.frag" "LitFrag.h" "LitFragSrc")
 
 embed_shader("equiToCubemap.vert" "EquiToCubemapVert.h" "EquiToCubemapVertSrc")
 embed_shader("equiToCubemap.frag" "EquiToCubemapFrag.h" "EquiToCubemapFragSrc")
+embed_shader("equiToCubemap_convolute.frag" "EquiToCubemapFrag_convolute.h" "EquiToCubemap_convoluteFragSrc")
 embed_shader("skybox.frag" "SkyboxFrag.h" "SkyboxFragSrc")
 embed_shader("skybox.vert" "SkyboxVert.h" "SkyboxVertSrc")
 # Disable the defered render
-add_compile_definitions(FRENDER_NO_DEFERED)
+# add_compile_definitions(FRENDER_NO_DEFERED)
 
 add_library(Frender 
     Src/Window.cc

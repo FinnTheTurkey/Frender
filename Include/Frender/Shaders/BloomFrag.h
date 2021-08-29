@@ -1,6 +1,5 @@
 // Auto generated file.
 static const char BloomFragSrc[] = "#version 330 core\n\
-#define GLSLIFY 1\n\
 layout (location = 0) out vec4 FragColor;\n\
 \n\
 in vec2 tex_coords;\n\

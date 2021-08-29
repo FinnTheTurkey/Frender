@@ -368,6 +368,14 @@ namespace Frender
         uint32_t createUnlitMaterial(float emmisive = 0);
 
         /**
+        Creates an empty material for Forward rendered lit objects
+        */
+        uint32_t createLitMaterial()
+        {
+            return createMaterial(lit_shader);
+        }
+
+        /**
         Gets the material as a pointer
         NOTE: This pointer is not guarenteed to always point
         at the material, and therefore shouldn't be stored anywhere
@@ -444,7 +452,7 @@ namespace Frender
 
         /// How to scale the resolutions of the bloom passes
         /// Set to 0 for no bloom
-        float bloom_res_scale = 1;
+        float bloom_res_scale = 0;
         /// How many passes of blur should be applied to the bloom
         float bloom_blur_amount = 5;
         /// How bright the bloom is
@@ -487,6 +495,9 @@ namespace Frender
         _LightUniforms light_uniforms;
         GLTools::Shader stage2_dlight_shader;
         _LightUniforms dlight_uniforms;
+        GLTools::Shader stage2_alight_shader;
+        _LightUniforms alight_uniforms;
+        GLTools::TextureManager alight_tx;
 
         GLTools::Shader lit_shader;
         _LightUniforms lit_uniforms;
@@ -501,6 +512,8 @@ namespace Frender
         uint32_t bloom_exposure_loc_fxaa;
         GLTools::Shader bloom_shader;
         uint32_t bloom_horizontal_loc;
+
+        GLTools::Texture dummy_texture;
 
         // The plane which the final image is rendered on
         GLTools::MeshBuffer plane;
@@ -572,8 +585,10 @@ namespace Frender
         // Skybox and ibl state
         bool has_skybox = false;
         Texture sky_cubemap;
+        Texture irradiance_cubemap;
         GLTools::MeshBuffer cube;
         GLTools::Shader equiToCubemap_shader;
+        GLTools::Shader equiToCubemap_convolution_shader;
         GLTools::Shader skybox_shader;
         GLTools::TextureManager skybox_textures;
         uint32_t skybox_vp_loc;

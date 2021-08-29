@@ -22,8 +22,7 @@ in vec3 light_color;
 in vec3 light_pos;
 in float radius;
 
-
-#pragma glslify: reflectanceEquation = require(./PBRLighting.glsl)
+#include "PBRLighting.glsl"
 
 void main()
 {

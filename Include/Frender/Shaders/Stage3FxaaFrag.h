@@ -1,6 +1,5 @@
 // Auto generated file.
 static const char Stage3FxaaFragSrc[] = "#version 330 core\n\
-#define GLSLIFY 1\n\
 out vec4 FragColor;\n\
 \n\
 in vec2 tex_coords;\n\
@@ -103,6 +102,7 @@ vec4 fxaa(sampler2D tex, vec2 fragCoord, vec2 resolution,\n\
         color = vec4(rgbB, texColor.a);\n\
     return color;\n\
 }\n\
+\n\
 \n\
 void texcoords(vec2 fragCoord, vec2 resolution,\n\
 			out vec2 v_rgbNW, out vec2 v_rgbNE,\n\

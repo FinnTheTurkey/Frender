@@ -1,5 +1,4 @@
 #version 330 core
-#define GLSLIFY 1
 layout (location = 0) out vec4 FragColor;
 layout (location = 1) out vec4 BrightColor;
 
@@ -17,6 +16,8 @@ uniform vec3 light_color;
 uniform vec3 cam_pos;
 uniform vec3 light_direction;
 
+
+// Included file: PBRLighting.glsl
 const float PI = 3.14159265359;
 
 // Random but important equations
@@ -26,6 +27,11 @@ const float PI = 3.14159265359;
 vec3 fresnelSchlick(float cos_theta, vec3 F0)
 {
     return F0 + (1.0 - F0) * pow(max(1.0 - cos_theta, 0.0), 5.0);
+}
+
+vec3 fresnelSchlickRoughness(float cosTheta, vec3 F0, float roughness)
+{
+    return F0 + (max(vec3(1.0 - roughness), F0) - F0) * pow(max(1.0 - cosTheta, 0.0), 5.0);
 }
 
 float distributionGGX(vec3 N, vec3 H, float roughness_p)
@@ -126,6 +132,16 @@ vec3 reflectanceEquation(float light_type, vec3 N, vec3 V, vec3 F0, vec3 diffuse
     return (kD * diffuse / PI + specular) * radiance * NdotL;
 }
 
+vec3 computeAmbient(vec3 N, vec3 V, vec3 F0, float roughness, vec3 diffuse_color, vec3 irradiance)
+{
+    vec3 kS = fresnelSchlickRoughness(max(dot(N, V), 0.0), F0, roughness);
+    vec3 kD = 1.0 - kS;
+    vec3 diffuse = irradiance * diffuse_color;
+    vec3 ambient = (kD * diffuse); // * ao
+    return ambient;
+}
+
+
 void main()
 {
     vec2 screen_pos = vec2(gl_FragCoord.x/width, gl_FragCoord.y/height);
@@ -147,6 +163,8 @@ void main()
     vec3 end_result = reflectanceEquation(1.0, normal, V, F0, color.xyz,
                 light_direction, pos,
                 light_color, roughness, metal, 0);
+
+    // end_result += 
 
     FragColor = vec4(end_result, 1);
     // FragColor = vec4(0, 1, 0, 1);

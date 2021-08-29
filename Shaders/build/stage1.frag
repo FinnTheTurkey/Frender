@@ -1,8 +1,8 @@
 #version 330 core
-#define GLSLIFY 1
 layout (location = 0) out vec4 ColorRoughness;
 layout (location = 1) out vec4 NormalMetallic;
 layout (location = 2) out vec3 position;
+
 
 in vec2 tex_coords;
 in vec3 normal;

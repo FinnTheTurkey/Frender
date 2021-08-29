@@ -1,6 +1,5 @@
 // Auto generated file.
 static const char Stage2FragDSrc[] = "#version 330 core\n\
-#define GLSLIFY 1\n\
 layout (location = 0) out vec4 FragColor;\n\
 layout (location = 1) out vec4 BrightColor;\n\
 \n\
@@ -18,6 +17,8 @@ uniform vec3 light_color;\n\
 uniform vec3 cam_pos;\n\
 uniform vec3 light_direction;\n\
 \n\
+\n\
+// Included file: PBRLighting.glsl\n\
 const float PI = 3.14159265359;\n\
 \n\
 // Random but important equations\n\
@@ -27,6 +28,11 @@ const float PI = 3.14159265359;\n\
 vec3 fresnelSchlick(float cos_theta, vec3 F0)\n\
 {\n\
     return F0 + (1.0 - F0) * pow(max(1.0 - cos_theta, 0.0), 5.0);\n\
+}\n\
+\n\
+vec3 fresnelSchlickRoughness(float cosTheta, vec3 F0, float roughness)\n\
+{\n\
+    return F0 + (max(vec3(1.0 - roughness), F0) - F0) * pow(max(1.0 - cosTheta, 0.0), 5.0);\n\
 }\n\
 \n\
 float distributionGGX(vec3 N, vec3 H, float roughness_p)\n\
@@ -127,6 +133,16 @@ vec3 reflectanceEquation(float light_type, vec3 N, vec3 V, vec3 F0, vec3 diffuse
     return (kD * diffuse / PI + specular) * radiance * NdotL;\n\
 }\n\
 \n\
+vec3 computeAmbient(vec3 N, vec3 V, vec3 F0, float roughness, vec3 diffuse_color, vec3 irradiance)\n\
+{\n\
+    vec3 kS = fresnelSchlickRoughness(max(dot(N, V), 0.0), F0, roughness);\n\
+    vec3 kD = 1.0 - kS;\n\
+    vec3 diffuse = irradiance * diffuse_color;\n\
+    vec3 ambient = (kD * diffuse); // * ao\n\
+    return ambient;\n\
+}\n\
+\n\
+\n\
 void main()\n\
 {\n\
     vec2 screen_pos = vec2(gl_FragCoord.x/width, gl_FragCoord.y/height);\n\
@@ -148,6 +164,8 @@ void main()\n\
     vec3 end_result = reflectanceEquation(1.0, normal, V, F0, color.xyz,\n\
                 light_direction, pos,\n\
                 light_color, roughness, metal, 0);\n\
+\n\
+    // end_result += \n\
 \n\
     FragColor = vec4(end_result, 1);\n\
     // FragColor = vec4(0, 1, 0, 1);\n\
