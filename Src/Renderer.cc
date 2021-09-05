@@ -19,6 +19,8 @@
 #include "Frender/Shaders/EquiToCubemapVert.h"
 #include "Frender/Shaders/EquiToCubemapFrag.h"
 #include "Frender/Shaders/EquiToCubemapFrag_convolute.h"
+#include "Frender/Shaders/EquiToCubemapFrag_prefilter.h"
+#include "Frender/Shaders/IntegrateBRDFFrag.h"
 #include "Frender/Shaders/SkyboxFrag.h"
 #include "Frender/Shaders/SkyboxVert.h"
 #include "Frender/Shaders/Stage2Vert.h"
@@ -46,6 +48,7 @@ Frender::Renderer::Renderer(int width, int height)
 
     equiToCubemap_shader = GLTools::Shader(EquiToCubemapVertSrc, EquiToCubemapFragSrc);
     equiToCubemap_convolution_shader = GLTools::Shader(EquiToCubemapVertSrc, EquiToCubemap_convoluteFragSrc);
+    equiToCubemap_prefilter_shader = GLTools::Shader(EquiToCubemapVertSrc, EquiToCubemap_prefilterFragSrc);
     skybox_shader = GLTools::Shader(SkyboxVertSrc, SkyboxFragSrc);
     skybox_textures = GLTools::TextureManager(skybox_shader);
     skybox_vp_loc = skybox_shader.getUniformLocation("vp");
@@ -200,6 +203,32 @@ Frender::Renderer::Renderer(int width, int height)
     light_sphere_vao.bind();
     GLERRORCHECK();
 #endif
+
+    glEnable(GL_TEXTURE_CUBE_MAP_SEAMLESS);
+
+    // Create precomputed BRDF
+    auto ibrdf_shader = GLTools::Shader(Stage3VertSrc, IntegrateBRDFFragSrc);
+    auto fb = GLTools::Framebuffer(512, 512, {
+        {GLTools::Texture2D, GLTools::RGBA16}
+    });
+
+    glViewport(0, 0, 512, 512);
+
+    auto sacrafice = fb.getTexture()[0];
+    brdf_precomputed = Texture(512, 512, (float*)nullptr);
+    fb.setTexture(0, GLTools::Texture2D, GLTools::RGBA16, brdf_precomputed);
+
+    fb.enable();
+    ibrdf_shader.enable();
+    plane.enable();
+    glDrawElements(GL_TRIANGLES, plane.num_indices, GL_UNSIGNED_INT, 0);
+    plane.disable();
+
+    fb.setTexture(0, GLTools::Texture2D, GLTools::RGBA16, sacrafice);
+    fb.disable();
+    fb.destroy();
+    ibrdf_shader.destroy();
+    delete dummy;
 }
 
 void Frender::Renderer::render(float delta)
@@ -218,7 +247,7 @@ void Frender::Renderer::render(float delta)
     //     elapsed_frames = 0;
     // }
 
-    glClearColor(0.2f, 0.3f, 0.3f, 1.0f);
+    glClearColor(0.0f, 0.8f, 0.0f, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     // glClear(GL_DEPTH_BUFFER_BIT);
 
@@ -323,6 +352,8 @@ void Frender::Renderer::setRenderResolution(int new_width, int new_height)
     alight_tx.set("NormalMetal", stage2_fbo.getTexture()[1]);
     alight_tx.set("position", stage2_fbo.getTexture()[2]);
     alight_tx.set("irradiance_map", irradiance_cubemap, GLTools::CUBEMAP_PX);
+    alight_tx.set("prefilter_map", prefilter_cubemap, GLTools::CUBEMAP_PX);
+    alight_tx.set("brdf", brdf_precomputed, GLTools::Texture2D);
     GLERRORCHECK();
 #endif
 
@@ -380,6 +411,8 @@ uint32_t Frender::Renderer::createMaterial(GLTools::Shader shader)
     });
     mat.textures = GLTools::TextureManager(shader);
     mat.textures.set("irradiance_map", irradiance_cubemap, GLTools::CUBEMAP_PX);
+    mat.textures.set("prefilter_map", prefilter_cubemap, GLTools::CUBEMAP_PX);
+    mat.textures.set("brdf", brdf_precomputed, GLTools::Texture2D);
     mat.textures.set("diffuse_map", dummy_texture);
     mat.textures.set("metal_map", dummy_texture);
     mat.textures.set("normal_map", dummy_texture);
@@ -750,8 +783,12 @@ void Frender::Renderer::setSkybox(int width, int height, float* data)
     // Convoluted one for irradience
     irradiance_cubemap = GLTools::equirectangularToCubemap(equiToCubemap_convolution_shader, tx);
 
+    // Convoluted one for prefilter
+    prefilter_cubemap = GLTools::equirectangularToCubemap(equiToCubemap_prefilter_shader, tx, true, 128, 128);
+
     // Add it to all the textures
     alight_tx.set("irradiance_map", irradiance_cubemap, GLTools::CUBEMAP_PX);
+    alight_tx.set("prefilter_map", prefilter_cubemap, GLTools::CUBEMAP_PX);
 
     tx.destroy();
     skybox_textures.set("skybox", sky_cubemap, GLTools::CUBEMAP_PX);

@@ -139,12 +139,21 @@ vec3 reflectanceEquation(float light_type, vec3 N, vec3 V, vec3 F0, vec3 diffuse
     return (kD * diffuse / PI + specular) * radiance * NdotL;\n\
 }\n\
 \n\
-vec3 computeAmbient(vec3 N, vec3 V, vec3 F0, float roughness, vec3 diffuse_color, vec3 irradiance)\n\
+vec3 computeAmbient(vec3 N, vec3 V, vec3 F0, float roughness, vec3 diffuse_color, vec3 irradiance,\n\
+                samplerCube prefiltered, sampler2D brdf)\n\
 {\n\
+    vec3 R = reflect(-V, N);\n\
     vec3 kS = fresnelSchlickRoughness(max(dot(N, V), 0.0), F0, roughness);\n\
+    vec3 F = kS;\n\
     vec3 kD = 1.0 - kS;\n\
     vec3 diffuse = irradiance * diffuse_color;\n\
-    vec3 ambient = (kD * diffuse); // * ao\n\
+\n\
+    const float MAX_REFLECTION_LOD = 4.0;\n\
+    vec3 prefilteredColor = textureLod(prefiltered, R,  roughness * MAX_REFLECTION_LOD).rgb;   \n\
+    vec2 envBRDF  = texture(brdf, vec2(max(dot(N, V), 0.0), roughness)).rg;\n\
+    vec3 specular = prefilteredColor * (F * envBRDF.x + envBRDF.y);\n\
+\n\
+    vec3 ambient = (kD * diffuse + specular); // * ao\n\
     return ambient;\n\
 }\n\
 \n\

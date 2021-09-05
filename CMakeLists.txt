@@ -65,6 +65,8 @@ embed_shader("lit.frag" "LitFrag.h" "LitFragSrc")
 embed_shader("equiToCubemap.vert" "EquiToCubemapVert.h" "EquiToCubemapVertSrc")
 embed_shader("equiToCubemap.frag" "EquiToCubemapFrag.h" "EquiToCubemapFragSrc")
 embed_shader("equiToCubemap_convolute.frag" "EquiToCubemapFrag_convolute.h" "EquiToCubemap_convoluteFragSrc")
+embed_shader("equiToCubemap_prefilter.frag" "EquiToCubemapFrag_prefilter.h" "EquiToCubemap_prefilterFragSrc")
+embed_shader("IntegrateBRDF.frag" "IntegrateBRDFFrag.h" "IntegrateBRDFFragSrc")
 embed_shader("skybox.frag" "SkyboxFrag.h" "SkyboxFragSrc")
 embed_shader("skybox.vert" "SkyboxVert.h" "SkyboxVertSrc")
 # Disable the defered render

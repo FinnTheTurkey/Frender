@@ -30,6 +30,8 @@ uniform sampler2D normal_map;
 uniform sampler2D roughness_map;
 
 uniform samplerCube irradiance_map;
+uniform samplerCube prefilter_map;
+uniform sampler2D brdf;
 
 // uniform int width;
 // uniform int height;
@@ -53,6 +55,8 @@ void main()
     {
         mness = texture(metal_map, tex_coords).x;
     }
+    rness = clamp(rness, 0.01, 0.99);
+    mness = clamp(mness, 0.01, 0.99);
 
     vec3 N = normal.xyz;
     if (has_normal_map == 1)
@@ -104,7 +108,8 @@ void main()
         }
     }
 
-    end_result += computeAmbient(N, V, F0, rness, colour.xyz, texture(irradiance_map, N).xyz);
+    end_result += computeAmbient(N, V, F0, rness, colour.xyz, texture(irradiance_map, N).xyz,
+                prefilter_map, brdf);
 
     FragColor = vec4(end_result, 1);
     // FragColor = vec4(0.01, 0.01, 0.01, 1);

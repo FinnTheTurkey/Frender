@@ -55,6 +55,7 @@ namespace Frender::GLTools
         void destroy();
 
         void enable();
+        void disable();
 
         size_t num_indices;
     private:
@@ -400,9 +401,9 @@ namespace Frender::GLTools
         
     };
 
-    Texture equirectangularToCubemap(Shader shader, Texture equi);
+    Texture equirectangularToCubemap(Shader shader, Texture equi, bool mipmap = false, int width = 512, int height = 512);
 
-    Texture createCubemap(int width, int height);
+    Texture createCubemap(int width, int height, bool mipmap = false);
 
     struct _TexStore
     {
@@ -452,7 +453,7 @@ namespace Frender::GLTools
 
         std::vector<Texture> getTexture();
         Texture changeTexture(int index, TextureVarieties vari, TextureTypes type);
-        void setTexture(int index, TextureVarieties vari, TextureTypes type, Texture tx);
+        void setTexture(int index, TextureVarieties vari, TextureTypes type, Texture tx, int mip = 0);
 
         void enable();
         void disable();

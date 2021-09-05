@@ -1,5 +1,6 @@
 #include "Frender/GLTools.hh"
 #include "glm/gtc/matrix_transform.hpp"
+#include <cmath>
 #include <glad/glad.h>
 #include <iostream>
 #include <glm/gtc/type_ptr.hpp>
@@ -86,6 +87,11 @@ void Frender::GLTools::MeshBuffer::destroy()
 void Frender::GLTools::MeshBuffer::enable()
 {
     glBindVertexArray(vao);
+}
+
+void Frender::GLTools::MeshBuffer::disable()
+{
+    glBindVertexArray(0);
 }
 
 // ====================================================================
@@ -550,7 +556,7 @@ void Frender::GLTools::Texture::destroy()
     // TODO: decrement vram_usage variable
 }
 
-Frender::GLTools::Texture Frender::GLTools::createCubemap(int width, int height)
+Frender::GLTools::Texture Frender::GLTools::createCubemap(int width, int height, bool mipmap)
 {
     uint32_t tx;
 
@@ -561,7 +567,7 @@ Frender::GLTools::Texture Frender::GLTools::createCubemap(int width, int height)
     {
         // note that we store each face with 16 bit floating point values
         glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, 0, GL_RGBA16F, 
-                    512, 512, 0, GL_RGBA, GL_FLOAT, nullptr);
+                    width, height, 0, GL_RGBA, GL_FLOAT, nullptr);
     }
     glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
     glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
@@ -569,21 +575,28 @@ Frender::GLTools::Texture Frender::GLTools::createCubemap(int width, int height)
     glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 
+    if (mipmap)
+    {
+        glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+        glGenerateMipmap(GL_TEXTURE_CUBE_MAP);
+    }
+    else
+    {
+        glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    }
+
     return tx;
 }
 
-Frender::GLTools::Texture Frender::GLTools::equirectangularToCubemap(Shader shader, Texture equi)
+Frender::GLTools::Texture Frender::GLTools::equirectangularToCubemap(Shader shader, Texture equi, bool mipmap, int og_width, int og_height)
 {
-    auto fb = Framebuffer(512, 512, {
-        {Texture2D, RGBA16},
-    });
 
     // Create cube mesh
     std::vector<GLTools::Vertex> vertices = {
             // back face
             {-1.0f, -1.0f, -1.0f,  0.0f,  0.0f, -1.0f, 0.0f, 0.0f}, // bottom-left
             {1.0f,  1.0f, -1.0f,  0.0f,  0.0f, -1.0f, 1.0f, 1.0f}, // top-right
-            {1.0f, -1.0f, -1.0f,  0.0f,  0.0f, -1.0f, 1.0f, 0.0f}, // bottom-right         
+            {1.0f, -1.0f, -1.0f,  0.0f,  0.0f, -1.0f, 1.0f, 0.0f}, // bottom-right
             {1.0f,  1.0f, -1.0f,  0.0f,  0.0f, -1.0f, 1.0f, 1.0f}, // top-right
             {-1.0f, -1.0f, -1.0f,  0.0f,  0.0f, -1.0f, 0.0f, 0.0f}, // bottom-left
             {-1.0f,  1.0f, -1.0f,  0.0f,  0.0f, -1.0f, 0.0f, 1.0f}, // top-left
@@ -651,30 +664,51 @@ Frender::GLTools::Texture Frender::GLTools::equirectangularToCubemap(Shader shad
 
     shader.setUniform(shader.getUniformLocation("projection"), captureProjection);
 
-    auto cubemap = createCubemap(512, 512);
-    auto sacrafice = fb.getTexture()[0];
-    GLERRORCHECK();
-    fb.setTexture(0, CUBEMAP_PX, RGBA16, cubemap);
+    auto cubemap = createCubemap(og_width, og_height, mipmap);
+    unsigned int max_mips = mipmap ? 5 : 1;
 
-    glViewport(0, 0, 512, 512);
-    for (int i = 0; i < 6; i++)
+    for (unsigned int mip = 0; mip < max_mips; mip ++)
     {
-        shader.setUniform(shader.getUniformLocation("view"), captureViews[i]);
-        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-        mb.enable();
+        int width = og_height * std::pow(0.5, mip);
+        int height = og_width * std::pow(0.5, mip);
 
-        glDrawElements(GL_TRIANGLES, mb.num_indices, GL_UNSIGNED_INT, 0);
+        auto fb = Framebuffer(width, height, {
+            {Texture2D, RGBA16},
+        });
 
-        if (i != 5)
+        auto sacrafice = fb.getTexture()[0];
+        GLERRORCHECK();
+        fb.setTexture(0, CUBEMAP_PX, RGBA16, cubemap, mip);
+
+        t.enable();
+        if (mipmap)
         {
-            fb.setTexture(0, (TextureVarieties)(CUBEMAP_PX + i + 1), RGBA16, cubemap);
+            // Set roughness uniform
+            shader.setUniform(shader.getUniformLocation("roughness"), (float)mip / (float)(max_mips - 1));
         }
-    }
 
-    // Clean up
-    // Destroying fbo destroys it's textures too, so add sacraficial texture
-    fb.setTexture(0, Texture2D, RGBA16, sacrafice);
-    fb.destroy();
+        glViewport(0, 0, width, height);
+        for (int i = 0; i < 6; i++)
+        {
+            shader.setUniform(shader.getUniformLocation("view"), captureViews[i]);
+            glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+            mb.enable();
+
+            glDrawElements(GL_TRIANGLES, mb.num_indices, GL_UNSIGNED_INT, 0);
+
+            if (i != 5)
+            {
+                fb.setTexture(0, (TextureVarieties)(CUBEMAP_PX + i + 1), RGBA16, cubemap, mip);
+            }
+        }
+
+        // Clean up
+        // Destroying fbo destroys it's textures too, so add sacraficial texture
+        fb.setTexture(0, Texture2D, RGBA16, sacrafice);
+        fb.destroy();
+
+        std::cout << "Did thingy for mip " << mip << "\n";
+    }
     mb.destroy();
 
     return cubemap;
@@ -870,7 +904,7 @@ Frender::GLTools::Texture Frender::GLTools::Framebuffer::changeTexture(int c, Fr
     return tx;
 }
 
-void Frender::GLTools::Framebuffer::setTexture(int index, TextureVarieties vari, TextureTypes typ, Texture tx)
+void Frender::GLTools::Framebuffer::setTexture(int index, TextureVarieties vari, TextureTypes typ, Texture tx, int mip)
 {
 
     glBindFramebuffer(GL_FRAMEBUFFER, framebuffer);
@@ -900,7 +934,7 @@ void Frender::GLTools::Framebuffer::setTexture(int index, TextureVarieties vari,
     GLERRORCHECK();
 
     // Attach color texture to framebuffer
-    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0 + index, variety2, tx.handle, 0);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0 + index, variety2, tx.handle, mip);
     GLERRORCHECK();
 }
 

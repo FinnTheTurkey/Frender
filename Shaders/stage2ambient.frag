@@ -9,6 +9,8 @@ uniform sampler2D NormalMetal;
 uniform sampler2D position;
 
 uniform samplerCube irradiance_map;
+uniform samplerCube prefilter_map;
+uniform sampler2D brdf;
 
 uniform int width;
 uniform int height;
@@ -36,7 +38,8 @@ void main()
     vec3 F0 = vec3(0.4);
     F0 = mix(F0, color.xyz, metal);
 
-    vec3 end_result = computeAmbient(N, V, F0, roughness, color, texture(irradiance_map, N).xyz);
+    vec3 end_result = computeAmbient(N, V, F0, roughness, color, texture(irradiance_map, N).xyz,
+            prefilter_map, brdf);
 
     FragColor = vec4(end_result, 1);
     // FragColor = vec4(0, 1, 0, 1);

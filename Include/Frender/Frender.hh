@@ -586,9 +586,12 @@ namespace Frender
         bool has_skybox = false;
         Texture sky_cubemap;
         Texture irradiance_cubemap;
+        Texture prefilter_cubemap;
+        Texture brdf_precomputed;
         GLTools::MeshBuffer cube;
         GLTools::Shader equiToCubemap_shader;
         GLTools::Shader equiToCubemap_convolution_shader;
+        GLTools::Shader equiToCubemap_prefilter_shader;
         GLTools::Shader skybox_shader;
         GLTools::TextureManager skybox_textures;
         uint32_t skybox_vp_loc;

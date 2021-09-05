@@ -224,7 +224,9 @@ void Frender::Renderer::bulkRender()
     // Set bloom parameters
     stage3_shader.setUniform(use_fxaa ? bloom_exposure_loc_fxaa : bloom_exposure_loc, bloom_blur_amount == 0 ? 0 : bloom_exposure);
 
+    // glDisable(GL_DEPTH_TEST);
     glDrawElements(GL_TRIANGLES, plane.num_indices, GL_UNSIGNED_INT, 0);
+    // glEnable(GL_DEPTH_TEST);
     GLERRORCHECK();
 }
 
@@ -347,6 +349,7 @@ void Frender::Renderer::litRender(glm::mat4 vp)
             GLERRORCHECK();
             
             getMaterial(mat.mat.mat_ref)->textures.set(0, irradiance_cubemap);
+            getMaterial(mat.mat.mat_ref)->textures.set(1, prefilter_cubemap);
             getMaterial(mat.mat.mat_ref)->textures.enable();
 
             GLERRORCHECK();
