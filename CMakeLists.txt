@@ -77,6 +77,8 @@ add_library(Frender
     Src/Renderer.cc
     Src/GLTools.cc
     Src/BulkRenderer.cc
+
+    Src/FrenderTools/FrenderTools.cc
     )
 target_include_directories(Frender PUBLIC Include)
 

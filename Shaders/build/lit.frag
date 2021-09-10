@@ -188,6 +188,8 @@ void main()
     {
         mness = texture(metal_map, tex_coords).x;
     }
+    rness = clamp(rness, 0.01, 0.99);
+    mness = clamp(mness, 0.01, 0.99);
 
     vec3 N = normal.xyz;
     if (has_normal_map == 1)
