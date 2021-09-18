@@ -419,6 +419,12 @@ namespace Frender
         };
 
         /**
+        Deletes a RenderObject
+        As of right now it does NOT delete any other resources
+        */
+        void destroyRenderObject(RenderObjectRef ro);
+
+        /**
         Creates a RenderObject that doesn't require lighting.
         This function requires a shader to render the unlit object with
         */
@@ -634,6 +640,9 @@ namespace Frender
 
         template <typename ROCpu, typename ROGpu>
         Frender::RenderObjectRef _addRenderObject(std::vector<ShaderSection<MatSection<MeshSection<ROCpu, ROGpu>>>>& scene, ROCpu cpu, ROGpu gpu, GLTools::Shader shader, MeshRef mesh, uint32_t mat, glm::mat4 transform, int rows = 8);
+
+        template <typename ROCpu, typename ROGpu>
+        void _destroyRenderObject(std::vector<ShaderSection<MatSection<MeshSection<ROCpu, ROGpu>>>>& scene, RenderObjectRef ro);
     };
 }
 

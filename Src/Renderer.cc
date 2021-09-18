@@ -641,7 +641,7 @@ Frender::RenderObjectRef Frender::Renderer::_addRenderObject(std::vector<ShaderS
         GLERRORCHECK();
         ms->meshes[index].vao->bind();
         GLERRORCHECK();
-        
+
         mesh_section_index = id;
     }
 
@@ -657,6 +657,107 @@ Frender::RenderObjectRef Frender::Renderer::_addRenderObject(std::vector<ShaderS
     mes->indicies.push_back(id);
 
     return {Unlit, shader_section_index, mat_section_index, mesh_section_index, id, this};
+}
+
+template <typename ROCpu, typename ROGpu>
+void Frender::Renderer::_destroyRenderObject(std::vector<ShaderSection<MatSection<MeshSection<ROCpu, ROGpu>>>>& scene, RenderObjectRef ro)
+{
+    if (ro.renderer == nullptr)
+    {
+        return;
+    }
+
+    // Work backwards
+    MeshSection<ROCpu, ROGpu>* mes = &scene[*ro.loc.shader_section].mats[*ro.loc.mat_section].meshes[*ro.loc.mesh_section];
+    
+    // Find our item
+    int found_index = -1;
+    for (auto i : mes->cpu_info)
+    {
+        if (i.index == ro.loc.index)
+        {
+            found_index = *i.index;
+
+            // Delete the item and the index
+            mes->gpu_buffer->pop(*i.index);
+            mes->indicies.erase(mes->indicies.begin() + *i.index);
+            *i.index = -1;
+            delete i.index;
+        }
+        else if (found_index != -1)
+        {
+            // Update the index
+            *i.index = *i.index - 1;
+        }
+    }
+
+    mes->cpu_info.erase(mes->cpu_info.begin() + found_index);
+
+    // Now we check the Mesh Section...
+    if (mes->cpu_info.size() < 1)
+    {
+        // Delete the mesh section
+        mes->vao->destroy(); // Do I re-use VertexArrays?
+        mes->gpu_buffer->destroy();
+        // TODO: Garbage collection for meshes
+        
+        // Update the indexes of the rest of them
+        auto mats = &scene[*ro.loc.shader_section].mats[*ro.loc.mat_section];
+        mats->meshes.erase(mats->meshes.begin() + *ro.loc.mesh_section);
+
+        for (int i = *ro.loc.mesh_section; i < mats->meshes.size(); i++)
+        {
+            *mats->meshes[i].index = *mats->meshes[i].index - 1;
+        }
+
+        // Now we check the Mat Section...
+        if (mats->meshes.size() < 1)
+        {
+            // Delete the mat section
+            // TODO: Garbage collection for mats
+            
+            // Update the indexes of the rest of them
+            auto shs = &scene[*ro.loc.shader_section];
+            shs->mats.erase(shs->mats.begin() + *ro.loc.mat_section);
+
+            for (int i = *ro.loc.mat_section; i < shs->mats.size(); i++)
+            {
+                *shs->mats[i].index = *shs->mats[i].index - 1;
+            }
+
+            // Now we check the Shader Section...
+            if (shs->mats.size() < 1)
+            {
+                // Delete the shader section
+                // TODO: Garbage collection for shader
+                
+                // Update the indexes of the rest of them
+                scene.erase(scene.begin() + *ro.loc.shader_section);
+
+                for (int i = *ro.loc.shader_section; i < scene.size(); i++)
+                {
+                    *scene[i].index = *scene[i].index - 1;
+                }
+            }
+        }
+    }
+}
+
+void Frender::Renderer::destroyRenderObject(RenderObjectRef ro)
+{
+    switch (ro.loc.type)
+    {
+        case (Lit):
+            _destroyRenderObject(scene_tree, ro); return;
+        
+        case (Unlit):
+            _destroyRenderObject(funlit_scene_tree, ro); return;
+        
+        case (ForwardLit):
+            _destroyRenderObject(flit_scene_tree, ro); return;
+
+        default: break;
+    }
 }
 
 Frender::RenderObjectRef Frender::Renderer::duplicateRenderObject(RenderObjectRef ro)

@@ -189,6 +189,13 @@ namespace Frender::GLTools
             reallocate = true;
         }
 
+        void pop(int index)
+        {
+            data.erase(data.begin() + index);
+
+            reallocate = true;
+        }
+
         /**
         Apply's all changes to the buffer and sends them to the gpu
         */
