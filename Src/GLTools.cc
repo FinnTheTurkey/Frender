@@ -764,7 +764,11 @@ void Frender::GLTools::TextureManager::enable()
         glBindTexture(data[i].vari == Texture2D ? GL_TEXTURE_2D : GL_TEXTURE_CUBE_MAP, data[i].tex.handle);
         if (glGetError() == GL_INVALID_OPERATION)
         {
-            std::cout << "bad\n";
+            std::cout << "Failed to bind texture\n";
+        }
+        if (data[i].vari != Texture2D)
+        {
+            // std::cout << "tesy\n";
         }
         GLERRORCHECK();
         glUniform1i(data[i].location, i);

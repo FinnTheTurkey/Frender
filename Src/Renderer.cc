@@ -91,9 +91,6 @@ Frender::Renderer::Renderer(int width, int height)
         {"light_color_type", GLTools::Vec4Array, std::array<glm::vec4, FRENDER_MAX_UNIFORM_ARRAY>()},
     }, 1);
 
-    setRenderResolution(width, height);
-    GLERRORCHECK();
-
     // Create plane
     std::vector<Frender::Vertex> vertices = {
         {1.0f,  1.0f, 0.0f , 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0}, // top right
@@ -229,6 +226,9 @@ Frender::Renderer::Renderer(int width, int height)
     fb.destroy();
     ibrdf_shader.destroy();
     delete dummy;
+
+    setRenderResolution(width, height);
+    GLERRORCHECK();
 }
 
 void Frender::Renderer::render(float delta)
