@@ -154,24 +154,34 @@ namespace Frender
         glm::mat4 transform;
     };
 
+    struct RenderObjectLocator
+    {
+        RenderObjectLocator() {}
+        RenderObjectLocator(RenderObjectTypes type, int* shader_section, int* mat_section, int *mesh_section, int *index):
+        type(type), shader_section(shader_section), mat_section(mat_section),
+        mesh_section(mesh_section), index(index) {}
+
+        RenderObjectTypes type;
+        int* shader_section = nullptr;
+        int* mat_section = nullptr;
+        int* mesh_section = nullptr;
+        int* index = nullptr;
+    };
+
     class RenderObjectRef
     {
     public:
         RenderObjectRef():renderer(nullptr) {};
-        RenderObjectRef(RenderObjectTypes type, int shader_section, int mat_section, int mesh_section, int index, Renderer* renderer)
-        :type(type), shader_section(shader_section), mat_section(mat_section), mesh_section(mesh_section), index(index), renderer(renderer) {}
+        RenderObjectRef(RenderObjectTypes type, int *shader_section, int *mat_section, int *mesh_section, int *index, Renderer* renderer)
+        :loc(type, shader_section, mat_section, mesh_section, index), renderer(renderer) {}
         
         glm::mat4 getTransform();
         void setTransform(glm::mat4 t);
 
         RenderObjectRef duplicate();
 
-        RenderObjectTypes type;
-        int shader_section;
-        int mat_section;
-        int mesh_section;
-        int index;
-        Renderer* renderer;
+        RenderObjectLocator loc;
+        Renderer* renderer = nullptr;
 
     private:
         
@@ -270,7 +280,7 @@ namespace Frender
 
     struct ROInfo
     {
-        int index;
+        int* index;
         glm::mat4 model;
         BoundingBox bounding_box;
     };
@@ -305,6 +315,8 @@ namespace Frender
 
         std::vector<CpuT> cpu_info;
         GLTools::Buffer<GpuT>* gpu_buffer; // Buffer must be ptr because vector can re-allocate
+        int* index;
+        std::vector<int*> indicies;
     };
 
     template <typename MeshT>
@@ -312,6 +324,7 @@ namespace Frender
     {
         MaterialRef mat;
         std::vector<MeshT> meshes;
+        int* index;
     };
 
     template <typename MatT>
@@ -319,6 +332,7 @@ namespace Frender
     {
         GLTools::Shader shader;
         std::vector<MatT> mats;
+        int* index;
     };
 
     struct Extrema
@@ -339,10 +353,7 @@ namespace Frender
 
         int light;
 
-        int shader_section;
-        int mat_section;
-        int mesh_section;
-        int index;
+        RenderObjectLocator loc;
     };
 
     class Renderer
@@ -464,25 +475,25 @@ namespace Frender
         double frame_rate;
         double frame_time;
 
-        ROInfo* _getRenderObject(RenderObjectTypes type, int shader_section, int mat_section, int mesh_section, int index)
+        ROInfo* _getRenderObject(RenderObjectLocator loc)
         {
-            switch (type)
+            switch (loc.type)
             {
                 case (Lit):
                 {
-                    return &scene_tree[shader_section].mats[mat_section].meshes[mesh_section].cpu_info[index];
+                    return &scene_tree[*loc.shader_section].mats[*loc.mat_section].meshes[*loc.mesh_section].cpu_info[*loc.index];
                 }
                 case (Unlit):
                 {
-                    return &funlit_scene_tree[shader_section].mats[mat_section].meshes[mesh_section].cpu_info[index];
+                    return &funlit_scene_tree[*loc.shader_section].mats[*loc.mat_section].meshes[*loc.mesh_section].cpu_info[*loc.index];
                 }
                 case (ForwardLit):
                 {
-                    return &flit_scene_tree[shader_section].mats[mat_section].meshes[mesh_section].cpu_info[index];
+                    return &flit_scene_tree[*loc.shader_section].mats[*loc.mat_section].meshes[*loc.mesh_section].cpu_info[*loc.index];
                 }
                 default: break;
             }
-
+            std::cout << "Trying to get inexistant render object\n";
             return nullptr;
         }
 
@@ -527,12 +538,12 @@ namespace Frender
         GLTools::Framebuffer stage2_fbo;
         GLTools::TextureManager stage2_tex;
         GLTools::TextureManager stage2_texd;
-        bool has_stage2;
+        bool has_stage2 = false;
 
         // Stage 3 framebuffer and materials
         GLTools::Framebuffer stage3_fbo;
         GLTools::TextureManager stage3_tex;
-        bool has_stage3;
+        bool has_stage3 = false;
 
         // FBOs and textures for bloom
         GLTools::Framebuffer bloom_fbo1;

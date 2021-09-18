@@ -430,7 +430,7 @@ void Frender::Renderer::calculateLighting(glm::mat4 vp)
             }
             else
             {
-                ROInfoLit* item = &flit_scene_tree[e.shader_section].mats[e.mat_section].meshes[e.mesh_section].cpu_info[e.index];
+                ROInfoLit* item = &flit_scene_tree[*e.loc.shader_section].mats[*e.loc.mat_section].meshes[*e.loc.mesh_section].cpu_info[*e.loc.index];
 
                 // Add all the lights colliding on the X axis
                 if (first)
@@ -523,7 +523,7 @@ void Frender::Renderer::calculateLighting(glm::mat4 vp)
                             // All light collisions are calculated
                             // So we can put it in GPUInfo
 
-                            Frender::ROInfoGPULit gpu_item = flit_scene_tree[e.shader_section].mats[e.mat_section].meshes[e.mesh_section].gpu_buffer->get(e.index);
+                            Frender::ROInfoGPULit gpu_item = flit_scene_tree[*e.loc.shader_section].mats[*e.loc.mat_section].meshes[*e.loc.mesh_section].gpu_buffer->get(*e.loc.index);
                             gpu_item.lights1[0] = item->complete_lights[0];
                             gpu_item.lights1[1] = item->complete_lights[1];
                             gpu_item.lights1[2] = item->complete_lights[2];
@@ -534,7 +534,7 @@ void Frender::Renderer::calculateLighting(glm::mat4 vp)
                             gpu_item.lights2[2] = item->complete_lights[6];
                             gpu_item.lights2[3] = item->complete_lights[7];
 
-                            flit_scene_tree[e.shader_section].mats[e.mat_section].meshes[e.mesh_section].gpu_buffer->set(e.index, gpu_item);
+                            flit_scene_tree[*e.loc.shader_section].mats[*e.loc.mat_section].meshes[*e.loc.mesh_section].gpu_buffer->set(*e.loc.index, gpu_item);
                         }
                     }
                 }

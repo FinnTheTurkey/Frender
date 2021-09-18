@@ -1,6 +1,7 @@
 #include "Frender/GLTools.hh"
 #include "glm/gtc/matrix_transform.hpp"
 #include <cmath>
+#include <cstring>
 #include <glad/glad.h>
 #include <iostream>
 #include <glm/gtc/type_ptr.hpp>
@@ -337,9 +338,10 @@ Frender::GLTools::UniformBuffer::UniformBuffer(Shader shader, std::string ub_nam
     for (auto i : values_info)
     {
         // This is utterly horrible, yet nessesairy
-        char* x = new char[i.name.length()];
-        auto length = i.name.copy(x, i.name.length(), 0);
-        x[length] = '\0';
+        char* x = new char[i.name.length()+1];
+        // auto length = i.name.copy(x, i.name.length(), 0);
+        // x[length+1] = '\0';
+        std::strcpy(x, i.name.c_str());
 
         names_for_gl.push_back(x);
     }

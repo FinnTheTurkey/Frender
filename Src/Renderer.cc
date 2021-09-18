@@ -523,7 +523,7 @@ Frender::RenderObjectRef Frender::Renderer::createRenderObject(MeshRef mesh, uin
     }
 
     auto obj = _addRenderObject<ROInfo, ROInfoGPU>(scene_tree, {0, transform}, {transform, transform}, stage1_bulk_shader, mesh, mat, transform);
-    obj.type = Lit;
+    obj.loc.type = Lit;
     return obj;
 #endif
 }
@@ -532,7 +532,7 @@ Frender::RenderObjectRef Frender::Renderer::createUnlitRenderObject(GLTools::Sha
 {
 
     auto obj = _addRenderObject<ROInfo, ROInfoGPU>(funlit_scene_tree, {0, transform}, {transform, transform}, shader, mesh, mat, transform);
-    obj.type = Unlit;
+    obj.loc.type = Unlit;
     return obj;
 }
 
@@ -545,11 +545,11 @@ Frender::RenderObjectRef Frender::Renderer::createLitRenderObject(GLTools::Shade
     }
 
     auto obj = _addRenderObject<ROInfoLit, ROInfoGPULit>(flit_scene_tree, {0, transform}, {transform, transform}, shader, mesh, mat, transform, 10);
-    obj.type = ForwardLit;
+    obj.loc.type = ForwardLit;
 
-    ROInfoLit* item = &flit_scene_tree[obj.shader_section].mats[obj.mat_section].meshes[obj.mesh_section].cpu_info[obj.index];
-    item->maxima_indexes = addExtrema({Extrema::Maxima, Extrema::Object, item->bounding_box.max_pos, 0, obj.shader_section, obj.mat_section, obj.mesh_section, obj.index});
-    item->minima_indexes = addExtrema({Extrema::Minima, Extrema::Object, item->bounding_box.min_pos, 0, obj.shader_section, obj.mat_section, obj.mesh_section, obj.index});
+    ROInfoLit* item = &flit_scene_tree[*obj.loc.shader_section].mats[*obj.loc.mat_section].meshes[*obj.loc.mesh_section].cpu_info[*obj.loc.index];
+    item->maxima_indexes = addExtrema({Extrema::Maxima, Extrema::Object, item->bounding_box.max_pos, 0, {ForwardLit, obj.loc.shader_section, obj.loc.mat_section, obj.loc.mesh_section, obj.loc.index}});
+    item->minima_indexes = addExtrema({Extrema::Minima, Extrema::Object, item->bounding_box.min_pos, 0, {ForwardLit, obj.loc.shader_section, obj.loc.mat_section, obj.loc.mesh_section, obj.loc.index}});
 
     return obj;
 }
@@ -558,59 +558,61 @@ template <typename ROCpu, typename ROGpu>
 Frender::RenderObjectRef Frender::Renderer::_addRenderObject(std::vector<ShaderSection<MatSection<MeshSection<ROCpu, ROGpu>>>>& scene, ROCpu cpu, ROGpu gpu, GLTools::Shader shader, MeshRef mesh, uint32_t mat, glm::mat4 transform, int rows)
 {
     // Find the correct shader section, and create if it doesn't exist
-    int shader_section_index = -1;
+    int* shader_section_index = nullptr;
     int c = 0;
     for (auto i : scene)
     {
         if (i.shader.program == shader.program)
         {
-            shader_section_index = c;
+            shader_section_index = i.index;
         }
         c++;
     }
 
-    if (shader_section_index == -1)
+    if (shader_section_index == nullptr)
     {
-        scene.push_back({shader, {}});
-        shader_section_index = scene.size() - 1;
+        int* id = new int(scene.size());
+        scene.push_back({shader, {}, id});
+        shader_section_index = id;
     }
 
     auto m = getMaterial(mat);
 
     // Find the correct section, or create if it doesn't exist
-    int mat_section_index = -1;
+    int* mat_section_index = nullptr;
     c = 0;
-    for (auto i : scene[shader_section_index].mats)
+    for (auto i : scene[*shader_section_index].mats)
     {
         if (i.mat.mat_ref == mat)
         {
-            mat_section_index = c;
+            mat_section_index = i.index;
         }
         c++;
     }
 
-    if (mat_section_index == -1)
+    if (mat_section_index == nullptr)
     {
         // Add a new mat section
-        scene.at(shader_section_index).mats.push_back(MatSection<MeshSection<ROCpu, ROGpu>> {{mat, m->uniforms.getRef(), m->shader}, {}});
-        mat_section_index = scene.at(shader_section_index).mats.size() - 1;
+        int* id = new int(scene.at(*shader_section_index).mats.size());
+        scene.at(*shader_section_index).mats.push_back(MatSection<MeshSection<ROCpu, ROGpu>> {{mat, m->uniforms.getRef(), m->shader}, {}, id});
+        mat_section_index = id;
     }
 
-    MatSection<MeshSection<ROCpu, ROGpu>>* ms = &scene.at(shader_section_index).mats[mat_section_index];
+    MatSection<MeshSection<ROCpu, ROGpu>>* ms = &scene.at(*shader_section_index).mats[*mat_section_index];
 
     // Find Mesh Section
-    int mesh_section_index = -1;
+    int* mesh_section_index = nullptr;
     c = 0;
     for (auto i : ms->meshes)
     {
         if (i.mesh == mesh)
         {
-            mesh_section_index = c;
+            mesh_section_index = i.index;
         }
         c++;
     }
 
-    if (mesh_section_index == -1)
+    if (mesh_section_index == nullptr)
     {
         // Add a new mesh section
         // We have to create some OpenGL Objects for this one
@@ -625,8 +627,9 @@ Frender::RenderObjectRef Frender::Renderer::_addRenderObject(std::vector<ShaderS
 
         GLTools::Buffer<ROGpu>* gpu_buffer = new GLTools::Buffer<ROGpu>(GLTools::Dynamic, sizes, {});
 
+        int* id = new int(ms->meshes.size());
         auto v = new GLTools::VertexArray();
-        ms->meshes.push_back(MeshSection<ROCpu, ROGpu> {mesh, v, {}, gpu_buffer});
+        ms->meshes.push_back(MeshSection<ROCpu, ROGpu> {mesh, v, {}, gpu_buffer, id});
         int index = ms->meshes.size() - 1;
 
         GLERRORCHECK();
@@ -639,62 +642,70 @@ Frender::RenderObjectRef Frender::Renderer::_addRenderObject(std::vector<ShaderS
         ms->meshes[index].vao->bind();
         GLERRORCHECK();
         
-        mesh_section_index = ms->meshes.size() - 1;
+        mesh_section_index = id;
     }
 
-    MeshSection<ROCpu, ROGpu>* mes = &ms->meshes[mesh_section_index];
+    MeshSection<ROCpu, ROGpu>* mes = &ms->meshes[*mesh_section_index];
 
     // Add actual data to CPU and GPU
-    int index = mes->cpu_info.size();
-    cpu.index = index;
+    int* id = new int(mes->cpu_info.size());
+    cpu.index = id;
     cpu.bounding_box = bounding_boxes[mes->mesh];
     cpu.bounding_box.transformBoundingBox(transform);
     mes->cpu_info.push_back(cpu);
     mes->gpu_buffer->pushBack(gpu);
+    mes->indicies.push_back(id);
 
-    return {Unlit, shader_section_index, mat_section_index, mesh_section_index, index, this};
+    return {Unlit, shader_section_index, mat_section_index, mesh_section_index, id, this};
 }
 
 Frender::RenderObjectRef Frender::Renderer::duplicateRenderObject(RenderObjectRef ro)
 {
-    if (ro.type == Lit)
+    if (ro.loc.type == Lit)
     {
-        return createUnlitRenderObject(scene_tree[ro.shader_section].shader, scene_tree[ro.shader_section].mats[ro.mat_section].meshes[ro.mesh_section].mesh,
-            scene_tree[ro.shader_section].mats[ro.mat_section].mat.mat_ref, scene_tree[ro.shader_section].mats[ro.mat_section].meshes[ro.mesh_section].cpu_info[ro.index].model);
+        return createUnlitRenderObject(scene_tree[*ro.loc.shader_section].shader, scene_tree[*ro.loc.shader_section].mats[*ro.loc.mat_section].meshes[*ro.loc.mesh_section].mesh,
+            scene_tree[*ro.loc.shader_section].mats[*ro.loc.mat_section].mat.mat_ref, scene_tree[*ro.loc.shader_section].mats[*ro.loc.mat_section].meshes[*ro.loc.mesh_section].cpu_info[*ro.loc.index].model);
     }
     else
     {
-        return createUnlitRenderObject(funlit_scene_tree[ro.shader_section].shader, funlit_scene_tree[ro.shader_section].mats[ro.mat_section].meshes[ro.mesh_section].mesh,
-            funlit_scene_tree[ro.shader_section].mats[ro.mat_section].mat.mat_ref, funlit_scene_tree[ro.shader_section].mats[ro.mat_section].meshes[ro.mesh_section].cpu_info[ro.index].model);
+        return createUnlitRenderObject(funlit_scene_tree[*ro.loc.shader_section].shader, funlit_scene_tree[*ro.loc.shader_section].mats[*ro.loc.mat_section].meshes[*ro.loc.mesh_section].mesh,
+            funlit_scene_tree[*ro.loc.shader_section].mats[*ro.loc.mat_section].mat.mat_ref, funlit_scene_tree[*ro.loc.shader_section].mats[*ro.loc.mat_section].meshes[*ro.loc.mesh_section].cpu_info[*ro.loc.index].model);
     }
 }
 
 Frender::RenderObjectTraits Frender::Renderer::getRenderObjectTraits(RenderObjectRef ro)
 {
-    if (ro.type == Lit)
+    if (ro.loc.type == Lit)
     {
-        return {ro.type,
-            scene_tree[ro.shader_section].shader,
-            scene_tree[ro.shader_section].mats[ro.mat_section].mat.mat_ref,
-            scene_tree[ro.shader_section].mats[ro.mat_section].meshes[ro.mesh_section].mesh,
-            scene_tree[ro.shader_section].mats[ro.mat_section].meshes[ro.mesh_section].cpu_info[ro.index].model};
+        if (*ro.loc.shader_section >= scene_tree.size()
+            || *ro.loc.mat_section >= scene_tree[*ro.loc.shader_section].mats.size()
+            || *ro.loc.mesh_section >= scene_tree[*ro.loc.shader_section].mats[*ro.loc.mat_section].meshes[*ro.loc.mesh_section].cpu_info.size())
+        {
+            std::cout << "Very, very bad\n";
+        }
+        
+        return {ro.loc.type,
+            scene_tree[*ro.loc.shader_section].shader,
+            scene_tree[*ro.loc.shader_section].mats[*ro.loc.mat_section].mat.mat_ref,
+            scene_tree[*ro.loc.shader_section].mats[*ro.loc.mat_section].meshes[*ro.loc.mesh_section].mesh,
+            scene_tree[*ro.loc.shader_section].mats[*ro.loc.mat_section].meshes[*ro.loc.mesh_section].cpu_info[*ro.loc.index].model};
     }
-    else if (ro.type == ForwardLit)
+    else if (ro.loc.type == ForwardLit)
     {
 
-        return {ro.type,
-            flit_scene_tree[ro.shader_section].shader,
-            flit_scene_tree[ro.shader_section].mats[ro.mat_section].mat.mat_ref,
-            flit_scene_tree[ro.shader_section].mats[ro.mat_section].meshes[ro.mesh_section].mesh,
-            flit_scene_tree[ro.shader_section].mats[ro.mat_section].meshes[ro.mesh_section].cpu_info[ro.index].model};
+        return {ro.loc.type,
+            flit_scene_tree[*ro.loc.shader_section].shader,
+            flit_scene_tree[*ro.loc.shader_section].mats[*ro.loc.mat_section].mat.mat_ref,
+            flit_scene_tree[*ro.loc.shader_section].mats[*ro.loc.mat_section].meshes[*ro.loc.mesh_section].mesh,
+            flit_scene_tree[*ro.loc.shader_section].mats[*ro.loc.mat_section].meshes[*ro.loc.mesh_section].cpu_info[*ro.loc.index].model};
     }
     else
     {
-        return {ro.type,
-            funlit_scene_tree[ro.shader_section].shader,
-            funlit_scene_tree[ro.shader_section].mats[ro.mat_section].mat.mat_ref,
-            funlit_scene_tree[ro.shader_section].mats[ro.mat_section].meshes[ro.mesh_section].mesh,
-            funlit_scene_tree[ro.shader_section].mats[ro.mat_section].meshes[ro.mesh_section].cpu_info[ro.index].model};
+        return {ro.loc.type,
+            funlit_scene_tree[*ro.loc.shader_section].shader,
+            funlit_scene_tree[*ro.loc.shader_section].mats[*ro.loc.mat_section].mat.mat_ref,
+            funlit_scene_tree[*ro.loc.shader_section].mats[*ro.loc.mat_section].meshes[*ro.loc.mesh_section].mesh,
+            funlit_scene_tree[*ro.loc.shader_section].mats[*ro.loc.mat_section].meshes[*ro.loc.mesh_section].cpu_info[*ro.loc.index].model};
     }
 }
 
@@ -711,8 +722,8 @@ uint32_t Frender::Renderer::createPointLight(glm::vec3 position, glm::vec3 color
 #endif
 
     // Add to Extrema list
-    addExtrema({Extrema::Minima, Extrema::Light, position - glm::vec3(radius), static_cast<int>(point_lights.size() - 1), 0, 0, 0, 0});
-    addExtrema({Extrema::Maxima, Extrema::Light, position + glm::vec3(radius), static_cast<int>(point_lights.size() - 1), 0, 0, 0, 0});
+    addExtrema({Extrema::Minima, Extrema::Light, position - glm::vec3(radius), static_cast<int>(point_lights.size() - 1), {}});
+    addExtrema({Extrema::Maxima, Extrema::Light, position + glm::vec3(radius), static_cast<int>(point_lights.size() - 1), {}});
 
     // Add to light buffer
     light_buffer.setArray("light_pos_dir_rad", light_index, glm::vec4(position.x, position.y, position.z, radius));
@@ -727,8 +738,8 @@ uint32_t Frender::Renderer::createDirectionalLight(glm::vec3 color, glm::vec3 di
     directional_lights.push_back({color, direction, light_index});
 
     // Add to Extrema list
-    addExtrema({Extrema::Minima, Extrema::Light, glm::vec3(-1000000), light_index, 0, 0, 0, 0});
-    addExtrema({Extrema::Maxima, Extrema::Light, glm::vec3(1000000), light_index, 0, 0, 0, 0});
+    addExtrema({Extrema::Minima, Extrema::Light, glm::vec3(-1000000), light_index, {}});
+    addExtrema({Extrema::Maxima, Extrema::Light, glm::vec3(1000000), light_index, {}});
 
     // Add to light buffer
     light_buffer.setArray("light_pos_dir_rad", light_index, glm::vec4(direction.x, direction.y, direction.z, 0));
@@ -740,12 +751,12 @@ uint32_t Frender::Renderer::createDirectionalLight(glm::vec3 color, glm::vec3 di
 
 glm::mat4 Frender::RenderObjectRef::getTransform()
 {
-    return renderer->_getRenderObject(type, shader_section, mat_section, mesh_section, index)->model;
+    return renderer->_getRenderObject(loc)->model;
 }
 
 void Frender::RenderObjectRef::setTransform(glm::mat4 t)
 {
-    renderer->_getRenderObject(type, shader_section, mat_section, mesh_section, index)->model = t;
+    renderer->_getRenderObject(loc)->model = t;
 }
 
 Frender::RenderObjectRef Frender::RenderObjectRef::duplicate()
