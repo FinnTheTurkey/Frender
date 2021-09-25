@@ -10,31 +10,30 @@
 #include <glm/gtc/matrix_transform.hpp>
 
 // Shaders embedded in C Source
-#include "Frender/Shaders/Stage1Vert.h"
-#include "Frender/Shaders/Stage1Frag.h"
-#include "Frender/Shaders/UnlitVert.h"
-#include "Frender/Shaders/UnlitFrag.h"
-#include "Frender/Shaders/LitVert.h"
-#include "Frender/Shaders/LitFrag.h"
-#include "Frender/Shaders/EquiToCubemapVert.h"
+#include "Frender/Shaders/BloomFrag.h"
 #include "Frender/Shaders/EquiToCubemapFrag.h"
 #include "Frender/Shaders/EquiToCubemapFrag_convolute.h"
 #include "Frender/Shaders/EquiToCubemapFrag_prefilter.h"
+#include "Frender/Shaders/EquiToCubemapVert.h"
 #include "Frender/Shaders/IntegrateBRDFFrag.h"
+#include "Frender/Shaders/LitFrag.h"
+#include "Frender/Shaders/LitVert.h"
 #include "Frender/Shaders/SkyboxFrag.h"
 #include "Frender/Shaders/SkyboxVert.h"
-#include "Frender/Shaders/Stage2Vert.h"
+#include "Frender/Shaders/Sphere.h"
+#include "Frender/Shaders/Stage1Frag.h"
+#include "Frender/Shaders/Stage1Vert.h"
 #include "Frender/Shaders/Stage2Frag.h"
-#include "Frender/Shaders/Stage2FragD.h"
 #include "Frender/Shaders/Stage2FragA.h"
-#include "Frender/Shaders/Stage3Vert.h"
+#include "Frender/Shaders/Stage2FragD.h"
+#include "Frender/Shaders/Stage2Vert.h"
 #include "Frender/Shaders/Stage3Frag.h"
 #include "Frender/Shaders/Stage3FxaaFrag.h"
-#include "Frender/Shaders/BloomFrag.h"
-#include "Frender/Shaders/Sphere.h"
+#include "Frender/Shaders/Stage3Vert.h"
+#include "Frender/Shaders/UnlitFrag.h"
+#include "Frender/Shaders/UnlitVert.h"
 
-Frender::Renderer::Renderer(int width, int height)
-:light_index(0)
+Frender::Renderer::Renderer(int width, int height) : light_index(0)
 {
     // Create stage3 shaders
     stage3_shader = GLTools::Shader(Stage3VertSrc, Stage3FragSrc);
@@ -52,7 +51,7 @@ Frender::Renderer::Renderer(int width, int height)
     skybox_shader = GLTools::Shader(SkyboxVertSrc, SkyboxFragSrc);
     skybox_textures = GLTools::TextureManager(skybox_shader);
     skybox_vp_loc = skybox_shader.getUniformLocation("vp");
-    
+
     int* dummy = new int(1);
     dummy_texture = GLTools::Texture(1, 1, (unsigned char*)dummy, false);
 
@@ -86,69 +85,73 @@ Frender::Renderer::Renderer(int width, int height)
     lit_uniforms.cam_pos = lit_shader.getUniformLocation("cam_pos");
 
     // Create light buffer
-    light_buffer = GLTools::UniformBuffer(lit_shader, "Lights", {
-        {"light_pos_dir_rad", GLTools::Vec4Array, std::array<glm::vec4, FRENDER_MAX_UNIFORM_ARRAY>()},
-        {"light_color_type", GLTools::Vec4Array, std::array<glm::vec4, FRENDER_MAX_UNIFORM_ARRAY>()},
-    }, 1);
+    light_buffer = GLTools::UniformBuffer(
+        lit_shader, "Lights",
+        {
+            {"light_pos_dir_rad", GLTools::Vec4Array, std::array<glm::vec4, FRENDER_MAX_UNIFORM_ARRAY>()},
+            {"light_color_type", GLTools::Vec4Array, std::array<glm::vec4, FRENDER_MAX_UNIFORM_ARRAY>()},
+        },
+        1);
 
     // Create plane
     std::vector<Frender::Vertex> vertices = {
-        {1.0f,  1.0f, 0.0f , 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0}, // top right
-        {1.0f, -1.0f, 0.0f , 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0}, // bottom right
-        {-1.0f, -1.0f, 0.0f, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},  // bottom left
-        {-1.0f,  1.0f, 0.0f, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0}  // top left 
+        {1.0f, 1.0f, 0.0f, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0},   // top right
+        {1.0f, -1.0f, 0.0f, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0},  // bottom right
+        {-1.0f, -1.0f, 0.0f, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}, // bottom left
+        {-1.0f, 1.0f, 0.0f, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0}   // top left
     };
-    std::vector<uint32_t> indices = {  // note that we start from 0!
-        3, 1, 0,   // first triangle
-        3, 2, 1    // second triangle
+    std::vector<uint32_t> indices = {
+        // note that we start from 0!
+        3, 1, 0, // first triangle
+        3, 2, 1  // second triangle
     };
 
     plane = GLTools::MeshBuffer(vertices, indices);
 
     // Create cube mesh
     std::vector<GLTools::Vertex> c_vertices = {
-            // back face
-            {-1.0f, -1.0f, -1.0f,  0.0f,  0.0f, -1.0f, 0.0f, 0.0f}, // bottom-left
-            {1.0f,  1.0f, -1.0f,  0.0f,  0.0f, -1.0f, 1.0f, 1.0f}, // top-right
-            {1.0f, -1.0f, -1.0f,  0.0f,  0.0f, -1.0f, 1.0f, 0.0f}, // bottom-right         
-            {1.0f,  1.0f, -1.0f,  0.0f,  0.0f, -1.0f, 1.0f, 1.0f}, // top-right
-            {-1.0f, -1.0f, -1.0f,  0.0f,  0.0f, -1.0f, 0.0f, 0.0f}, // bottom-left
-            {-1.0f,  1.0f, -1.0f,  0.0f,  0.0f, -1.0f, 0.0f, 1.0f}, // top-left
-            // front face
-            {-1.0f, -1.0f,  1.0f,  0.0f,  0.0f,  1.0f, 0.0f, 0.0f}, // bottom-left
-             {1.0f, -1.0f,  1.0f,  0.0f,  0.0f,  1.0f, 1.0f, 0.0f}, // bottom-right
-             {1.0f,  1.0f,  1.0f,  0.0f,  0.0f,  1.0f, 1.0f, 1.0f}, // top-right
-            { 1.0f,  1.0f,  1.0f,  0.0f,  0.0f,  1.0f, 1.0f, 1.0f}, // top-right
-            {-1.0f,  1.0f,  1.0f,  0.0f,  0.0f,  1.0f, 0.0f, 1.0f}, // top-left
-            {-1.0f, -1.0f,  1.0f,  0.0f,  0.0f,  1.0f, 0.0f, 0.0f}, // bottom-left
-            // left face
-            {-1.0f,  1.0f,  1.0f, -1.0f,  0.0f,  0.0f, 1.0f, 0.0f}, // top-right
-            {-1.0f,  1.0f, -1.0f, -1.0f,  0.0f,  0.0f, 1.0f, 1.0f}, // top-left
-            {-1.0f, -1.0f, -1.0f, -1.0f,  0.0f,  0.0f, 0.0f, 1.0f}, // bottom-left
-            {-1.0f, -1.0f, -1.0f, -1.0f,  0.0f,  0.0f, 0.0f, 1.0f}, // bottom-left
-            {-1.0f, -1.0f,  1.0f, -1.0f,  0.0f,  0.0f, 0.0f, 0.0f}, // bottom-right
-            {-1.0f,  1.0f,  1.0f, -1.0f,  0.0f,  0.0f, 1.0f, 0.0f}, // top-right
-            // right face
-            { 1.0f,  1.0f,  1.0f,  1.0f,  0.0f,  0.0f, 1.0f, 0.0f}, // top-left
-             {1.0f, -1.0f, -1.0f,  1.0f,  0.0f,  0.0f, 0.0f, 1.0f}, // bottom-right
-             {1.0f,  1.0f, -1.0f,  1.0f,  0.0f,  0.0f, 1.0f, 1.0f}, // top-right         
-             {1.0f, -1.0f, -1.0f,  1.0f,  0.0f,  0.0f, 0.0f, 1.0f}, // bottom-right
-            { 1.0f,  1.0f,  1.0f,  1.0f,  0.0f,  0.0f, 1.0f, 0.0f}, // top-left
-            { 1.0f, -1.0f,  1.0f,  1.0f,  0.0f,  0.0f, 0.0f, 0.0f}, // bottom-left     
-            // bottom face
-            {-1.0f, -1.0f, -1.0f,  0.0f, -1.0f,  0.0f, 0.0f, 1.0f}, // top-right
-            { 1.0f, -1.0f, -1.0f,  0.0f, -1.0f,  0.0f, 1.0f, 1.0f}, // top-left
-            { 1.0f, -1.0f,  1.0f,  0.0f, -1.0f,  0.0f, 1.0f, 0.0f}, // bottom-left
-            { 1.0f, -1.0f,  1.0f,  0.0f, -1.0f,  0.0f, 1.0f, 0.0f}, // bottom-left
-            {-1.0f, -1.0f,  1.0f,  0.0f, -1.0f,  0.0f, 0.0f, 0.0f}, // bottom-right
-            {-1.0f, -1.0f, -1.0f,  0.0f, -1.0f,  0.0f, 0.0f, 1.0f}, // top-right
-            // top face
-            {-1.0f,  1.0f, -1.0f,  0.0f,  1.0f,  0.0f, 0.0f, 1.0f}, // top-left
-             {1.0f,  1.0f , 1.0f,  0.0f,  1.0f,  0.0f, 1.0f, 0.0f}, // bottom-right
-            { 1.0f,  1.0f, -1.0f,  0.0f,  1.0f,  0.0f, 1.0f, 1.0f}, // top-right     
-             {1.0f,  1.0f,  1.0f,  0.0f,  1.0f,  0.0f, 1.0f, 0.0f}, // bottom-right
-            {-1.0f,  1.0f, -1.0f,  0.0f,  1.0f,  0.0f, 0.0f, 1.0f}, // top-left
-            {-1.0f,  1.0f,  1.0f,  0.0f,  1.0f,  0.0f, 0.0f, 0.0f}  // bottom-left        
+        // back face
+        {-1.0f, -1.0f, -1.0f, 0.0f, 0.0f, -1.0f, 0.0f, 0.0f}, // bottom-left
+        {1.0f, 1.0f, -1.0f, 0.0f, 0.0f, -1.0f, 1.0f, 1.0f},   // top-right
+        {1.0f, -1.0f, -1.0f, 0.0f, 0.0f, -1.0f, 1.0f, 0.0f},  // bottom-right
+        {1.0f, 1.0f, -1.0f, 0.0f, 0.0f, -1.0f, 1.0f, 1.0f},   // top-right
+        {-1.0f, -1.0f, -1.0f, 0.0f, 0.0f, -1.0f, 0.0f, 0.0f}, // bottom-left
+        {-1.0f, 1.0f, -1.0f, 0.0f, 0.0f, -1.0f, 0.0f, 1.0f},  // top-left
+        // front face
+        {-1.0f, -1.0f, 1.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f}, // bottom-left
+        {1.0f, -1.0f, 1.0f, 0.0f, 0.0f, 1.0f, 1.0f, 0.0f},  // bottom-right
+        {1.0f, 1.0f, 1.0f, 0.0f, 0.0f, 1.0f, 1.0f, 1.0f},   // top-right
+        {1.0f, 1.0f, 1.0f, 0.0f, 0.0f, 1.0f, 1.0f, 1.0f},   // top-right
+        {-1.0f, 1.0f, 1.0f, 0.0f, 0.0f, 1.0f, 0.0f, 1.0f},  // top-left
+        {-1.0f, -1.0f, 1.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f}, // bottom-left
+        // left face
+        {-1.0f, 1.0f, 1.0f, -1.0f, 0.0f, 0.0f, 1.0f, 0.0f},   // top-right
+        {-1.0f, 1.0f, -1.0f, -1.0f, 0.0f, 0.0f, 1.0f, 1.0f},  // top-left
+        {-1.0f, -1.0f, -1.0f, -1.0f, 0.0f, 0.0f, 0.0f, 1.0f}, // bottom-left
+        {-1.0f, -1.0f, -1.0f, -1.0f, 0.0f, 0.0f, 0.0f, 1.0f}, // bottom-left
+        {-1.0f, -1.0f, 1.0f, -1.0f, 0.0f, 0.0f, 0.0f, 0.0f},  // bottom-right
+        {-1.0f, 1.0f, 1.0f, -1.0f, 0.0f, 0.0f, 1.0f, 0.0f},   // top-right
+        // right face
+        {1.0f, 1.0f, 1.0f, 1.0f, 0.0f, 0.0f, 1.0f, 0.0f},   // top-left
+        {1.0f, -1.0f, -1.0f, 1.0f, 0.0f, 0.0f, 0.0f, 1.0f}, // bottom-right
+        {1.0f, 1.0f, -1.0f, 1.0f, 0.0f, 0.0f, 1.0f, 1.0f},  // top-right
+        {1.0f, -1.0f, -1.0f, 1.0f, 0.0f, 0.0f, 0.0f, 1.0f}, // bottom-right
+        {1.0f, 1.0f, 1.0f, 1.0f, 0.0f, 0.0f, 1.0f, 0.0f},   // top-left
+        {1.0f, -1.0f, 1.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f},  // bottom-left
+        // bottom face
+        {-1.0f, -1.0f, -1.0f, 0.0f, -1.0f, 0.0f, 0.0f, 1.0f}, // top-right
+        {1.0f, -1.0f, -1.0f, 0.0f, -1.0f, 0.0f, 1.0f, 1.0f},  // top-left
+        {1.0f, -1.0f, 1.0f, 0.0f, -1.0f, 0.0f, 1.0f, 0.0f},   // bottom-left
+        {1.0f, -1.0f, 1.0f, 0.0f, -1.0f, 0.0f, 1.0f, 0.0f},   // bottom-left
+        {-1.0f, -1.0f, 1.0f, 0.0f, -1.0f, 0.0f, 0.0f, 0.0f},  // bottom-right
+        {-1.0f, -1.0f, -1.0f, 0.0f, -1.0f, 0.0f, 0.0f, 1.0f}, // top-right
+        // top face
+        {-1.0f, 1.0f, -1.0f, 0.0f, 1.0f, 0.0f, 0.0f, 1.0f}, // top-left
+        {1.0f, 1.0f, 1.0f, 0.0f, 1.0f, 0.0f, 1.0f, 0.0f},   // bottom-right
+        {1.0f, 1.0f, -1.0f, 0.0f, 1.0f, 0.0f, 1.0f, 1.0f},  // top-right
+        {1.0f, 1.0f, 1.0f, 0.0f, 1.0f, 0.0f, 1.0f, 0.0f},   // bottom-right
+        {-1.0f, 1.0f, -1.0f, 0.0f, 1.0f, 0.0f, 0.0f, 1.0f}, // top-left
+        {-1.0f, 1.0f, 1.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f}   // bottom-left
     };
 
     std::vector<uint32_t> c_indices;
@@ -166,25 +169,25 @@ Frender::Renderer::Renderer(int width, int height)
     // New method for making light spheres
     // TODO: Do this in a better way
     // That doesn't leak memory
-    GLTools::Buffer<Vertex>* vertex_buffer = new GLTools::Buffer<Vertex>(GLTools::Static, {
-        {sizeof(glm::vec3), 3},
-        {sizeof(glm::vec3), 3},
-        {sizeof(glm::vec2), 2},
-        {sizeof(glm::vec3), 3},
-        {sizeof(glm::vec3), 3}
-    }, sphere_vertices);
+    GLTools::Buffer<Vertex>* vertex_buffer = new GLTools::Buffer<Vertex>(GLTools::Static,
+                                                                         {{sizeof(glm::vec3), 3},
+                                                                          {sizeof(glm::vec3), 3},
+                                                                          {sizeof(glm::vec2), 2},
+                                                                          {sizeof(glm::vec3), 3},
+                                                                          {sizeof(glm::vec3), 3}},
+                                                                         sphere_vertices);
 
-    point_light_buffer = GLTools::Buffer<PointLight>(GLTools::Dynamic, {
-        {sizeof(glm::vec3), 3},
-        {sizeof(glm::vec3), 3},
-        {sizeof(float), 1},
+    point_light_buffer = GLTools::Buffer<PointLight>(GLTools::Dynamic,
+                                                     {{sizeof(glm::vec3), 3},
+                                                      {sizeof(glm::vec3), 3},
+                                                      {sizeof(float), 1},
 
-        // Matrix has to be 4 values
-        {sizeof(glm::vec4), 4},
-        {sizeof(glm::vec4), 4},
-        {sizeof(glm::vec4), 4},
-        {sizeof(glm::vec4), 4}
-    }, {});
+                                                      // Matrix has to be 4 values
+                                                      {sizeof(glm::vec4), 4},
+                                                      {sizeof(glm::vec4), 4},
+                                                      {sizeof(glm::vec4), 4},
+                                                      {sizeof(glm::vec4), 4}},
+                                                     {});
 
     // point_light_buffer.pushBack({glm::vec3(0, 0, 0), glm::vec3(0, 0, 0), 0});
 
@@ -205,9 +208,7 @@ Frender::Renderer::Renderer(int width, int height)
 
     // Create precomputed BRDF
     auto ibrdf_shader = GLTools::Shader(Stage3VertSrc, IntegrateBRDFFragSrc);
-    auto fb = GLTools::Framebuffer(512, 512, {
-        {GLTools::Texture2D, GLTools::RGBA16}
-    });
+    auto fb = GLTools::Framebuffer(512, 512, {{GLTools::Texture2D, GLTools::RGBA16}});
 
     glViewport(0, 0, 512, 512);
 
@@ -234,7 +235,7 @@ Frender::Renderer::Renderer(int width, int height)
 void Frender::Renderer::render(float delta)
 {
     // Count framerate
-    frame_count ++;
+    frame_count++;
     // elapsed_time += delta;
     // elapsed_frames ++;
 
@@ -254,7 +255,7 @@ void Frender::Renderer::render(float delta)
     glEnable(GL_DEPTH_TEST);
 
     // TODO: Orthographic?
-    projection = glm::perspective(fov_rad, (float)width/height, near_distance, far_distance);
+    projection = glm::perspective(fov_rad, (float)width / height, near_distance, far_distance);
 
     bulkRender();
 
@@ -262,7 +263,7 @@ void Frender::Renderer::render(float delta)
     // std::cout << frame_count << "\n";
 }
 
-void Frender::Renderer::setCamera(const glm::mat4 &matrix)
+void Frender::Renderer::setCamera(const glm::mat4& matrix)
 {
     camera = matrix;
     inv_camera = glm::inverse(matrix);
@@ -286,10 +287,9 @@ void Frender::Renderer::setRenderResolution(int new_width, int new_height)
         GLERRORCHECK();
     }
 
-    stage3_fbo = GLTools::Framebuffer(width, height, {
-        {GLTools::Texture2D, GLTools::TextureTypes::RGBA16},
-        {GLTools::Texture2D, GLTools::TextureTypes::RGBA16}
-    });
+    stage3_fbo = GLTools::Framebuffer(
+        width, height,
+        {{GLTools::Texture2D, GLTools::TextureTypes::RGBA16}, {GLTools::Texture2D, GLTools::TextureTypes::RGBA16}});
     GLERRORCHECK();
     stage3_tex = GLTools::TextureManager(stage3_shader);
     GLERRORCHECK();
@@ -301,13 +301,11 @@ void Frender::Renderer::setRenderResolution(int new_width, int new_height)
     // Create bloom FBOs
     if (bloom_res_scale != 0)
     {
-        bloom_fbo1 = GLTools::Framebuffer(bloom_res_scale * width, bloom_res_scale * height, {
-            {GLTools::Texture2D, GLTools::TextureTypes::RGBA16}
-        });
+        bloom_fbo1 = GLTools::Framebuffer(bloom_res_scale * width, bloom_res_scale * height,
+                                          {{GLTools::Texture2D, GLTools::TextureTypes::RGBA16}});
 
-        bloom_fbo2 = GLTools::Framebuffer(bloom_res_scale * width, bloom_res_scale * height, {
-            {GLTools::Texture2D, GLTools::TextureTypes::RGBA16}
-        });
+        bloom_fbo2 = GLTools::Framebuffer(bloom_res_scale * width, bloom_res_scale * height,
+                                          {{GLTools::Texture2D, GLTools::TextureTypes::RGBA16}});
 
         bloom_tex1 = GLTools::TextureManager(bloom_shader);
         bloom_tex1.set("frame", bloom_fbo2.getTexture()[0]);
@@ -325,12 +323,11 @@ void Frender::Renderer::setRenderResolution(int new_width, int new_height)
         stage2_fbo.destroy();
         GLERRORCHECK();
     }
-    
-    stage2_fbo = GLTools::Framebuffer(width, height, {
-        {GLTools::Texture2D, GLTools::TextureTypes::RGBA8},
-        {GLTools::Texture2D, GLTools::TextureTypes::RGBA16},
-        {GLTools::Texture2D, GLTools::TextureTypes::RGBA16}
-    });
+
+    stage2_fbo = GLTools::Framebuffer(width, height,
+                                      {{GLTools::Texture2D, GLTools::TextureTypes::RGBA8},
+                                       {GLTools::Texture2D, GLTools::TextureTypes::RGBA16},
+                                       {GLTools::Texture2D, GLTools::TextureTypes::RGBA16}});
     GLERRORCHECK();
     stage2_tex = GLTools::TextureManager(stage2_light_shader);
     GLERRORCHECK();
@@ -375,15 +372,14 @@ uint32_t Frender::Renderer::createMaterial()
     }
     mat.shader = stage1_bulk_shader;
     mat.type = Bulk;
-    mat.uniforms = GLTools::UniformBuffer(stage1_bulk_shader, "Material", {
-        {"color", GLTools::Vec3, glm::vec3(1, 0, 0)},
-        {"roughness", GLTools::Float, 0.4f},
-        {"metalness", GLTools::Float, 0.0f},
-        {"has_diffuse_map", GLTools::Int, 0},
-        {"has_normal_map", GLTools::Int, 0},
-        {"has_roughness_map", GLTools::Int, 0},
-        {"has_metal_map", GLTools::Int, 0}
-    });
+    mat.uniforms = GLTools::UniformBuffer(stage1_bulk_shader, "Material",
+                                          {{"color", GLTools::Vec3, glm::vec3(1, 0, 0)},
+                                           {"roughness", GLTools::Float, 0.4f},
+                                           {"metalness", GLTools::Float, 0.0f},
+                                           {"has_diffuse_map", GLTools::Int, 0},
+                                           {"has_normal_map", GLTools::Int, 0},
+                                           {"has_roughness_map", GLTools::Int, 0},
+                                           {"has_metal_map", GLTools::Int, 0}});
     mat.textures = GLTools::TextureManager(stage1_bulk_shader);
     mat.textures.set("diffuse_map", dummy_texture);
     mat.textures.set("metal_map", dummy_texture);
@@ -391,7 +387,7 @@ uint32_t Frender::Renderer::createMaterial()
     mat.textures.set("roughness_map", dummy_texture);
     materials.push_back(mat);
 
-    return materials.size()-1;
+    return materials.size() - 1;
 }
 
 uint32_t Frender::Renderer::createMaterial(GLTools::Shader shader)
@@ -400,15 +396,14 @@ uint32_t Frender::Renderer::createMaterial(GLTools::Shader shader)
 
     mat.shader = shader;
     mat.type = Detail;
-    mat.uniforms = GLTools::UniformBuffer(shader, "Material", {
-        {"color", GLTools::Vec3, glm::vec3(1, 0, 0)},
-        {"roughness", GLTools::Float, 0.4f},
-        {"metalness", GLTools::Float, 0.0f},
-        {"has_diffuse_map", GLTools::Int, 0},
-        {"has_normal_map", GLTools::Int, 0},
-        {"has_roughness_map", GLTools::Int, 0},
-        {"has_metal_map", GLTools::Int, 0}
-    });
+    mat.uniforms = GLTools::UniformBuffer(shader, "Material",
+                                          {{"color", GLTools::Vec3, glm::vec3(1, 0, 0)},
+                                           {"roughness", GLTools::Float, 0.4f},
+                                           {"metalness", GLTools::Float, 0.0f},
+                                           {"has_diffuse_map", GLTools::Int, 0},
+                                           {"has_normal_map", GLTools::Int, 0},
+                                           {"has_roughness_map", GLTools::Int, 0},
+                                           {"has_metal_map", GLTools::Int, 0}});
     mat.textures = GLTools::TextureManager(shader);
     mat.textures.set("irradiance_map", irradiance_cubemap, GLTools::CUBEMAP_PX);
     mat.textures.set("prefilter_map", prefilter_cubemap, GLTools::CUBEMAP_PX);
@@ -419,7 +414,7 @@ uint32_t Frender::Renderer::createMaterial(GLTools::Shader shader)
     mat.textures.set("roughness_map", dummy_texture);
     materials.push_back(mat);
 
-    return materials.size()-1;
+    return materials.size() - 1;
 }
 
 uint32_t Frender::Renderer::createUnlitMaterial(float emmisive)
@@ -428,16 +423,17 @@ uint32_t Frender::Renderer::createUnlitMaterial(float emmisive)
 
     mat.shader = unlit;
     mat.type = Detail;
-    mat.uniforms = GLTools::UniformBuffer(unlit, "Material", {
-        {"color", GLTools::Vec3, glm::vec3(1, 0, 0)},
-        {"emmisive", GLTools::Float, emmisive},
-        {"has_diffuse_map", GLTools::Int, 0},
-    });
+    mat.uniforms = GLTools::UniformBuffer(unlit, "Material",
+                                          {
+                                              {"color", GLTools::Vec3, glm::vec3(1, 0, 0)},
+                                              {"emmisive", GLTools::Float, emmisive},
+                                              {"has_diffuse_map", GLTools::Int, 0},
+                                          });
     mat.textures = GLTools::TextureManager(unlit);
     mat.textures.set("diffuse_map", dummy_texture);
     materials.push_back(mat);
 
-    return materials.size()-1;
+    return materials.size() - 1;
 }
 
 Frender::Material* Frender::Renderer::getMaterial(uint32_t material)
@@ -445,7 +441,7 @@ Frender::Material* Frender::Renderer::getMaterial(uint32_t material)
     return &materials[material];
 }
 
-Frender::Texture Frender::Renderer::createTexture(int width, int height, const unsigned char *data)
+Frender::Texture Frender::Renderer::createTexture(int width, int height, const unsigned char* data)
 {
     Texture tex(width, height, data, true);
 
@@ -455,16 +451,17 @@ Frender::Texture Frender::Renderer::createTexture(int width, int height, const u
     return tex;
 }
 
-Frender::MeshRef Frender::Renderer::createMesh(const std::vector<Vertex>& vertices, const std::vector<uint32_t>& nindices)
+Frender::MeshRef Frender::Renderer::createMesh(const std::vector<Vertex>& vertices,
+                                               const std::vector<uint32_t>& nindices)
 {
     // meshes.push_back({vertices, indices});
-    GLTools::Buffer<Vertex>* vertex_buffer = new GLTools::Buffer<Vertex>(GLTools::Static, {
-        {sizeof(glm::vec3), 3},
-        {sizeof(glm::vec3), 3},
-        {sizeof(glm::vec2), 2},
-        {sizeof(glm::vec3), 3},
-        {sizeof(glm::vec3), 3}
-    }, vertices);
+    GLTools::Buffer<Vertex>* vertex_buffer = new GLTools::Buffer<Vertex>(GLTools::Static,
+                                                                         {{sizeof(glm::vec3), 3},
+                                                                          {sizeof(glm::vec3), 3},
+                                                                          {sizeof(glm::vec2), 2},
+                                                                          {sizeof(glm::vec3), 3},
+                                                                          {sizeof(glm::vec3), 3}},
+                                                                         vertices);
 
     auto index_buffer = new GLTools::Buffer<uint32_t>(GLTools::Element, {{sizeof(uint32_t), 1}}, nindices);
 
@@ -509,7 +506,7 @@ Frender::MeshRef Frender::Renderer::createMesh(const std::vector<Vertex>& vertic
 
     bounding_boxes.push_back({min_pos, max_pos, min_pos, max_pos});
 
-    return meshes.size()-1;
+    return meshes.size() - 1;
 }
 
 Frender::RenderObjectRef Frender::Renderer::createRenderObject(MeshRef mesh, uint32_t mat, glm::mat4 transform)
@@ -522,21 +519,25 @@ Frender::RenderObjectRef Frender::Renderer::createRenderObject(MeshRef mesh, uin
         return createUnlitRenderObject(getMaterial(mat)->shader, mesh, mat, transform);
     }
 
-    auto obj = _addRenderObject<ROInfo, ROInfoGPU>(scene_tree, {0, transform}, {transform, transform}, stage1_bulk_shader, mesh, mat, transform);
+    auto obj = _addRenderObject<ROInfo, ROInfoGPU>(scene_tree, {0, transform}, {transform, transform},
+                                                   stage1_bulk_shader, mesh, mat, transform);
     obj.loc.type = Lit;
     return obj;
 #endif
 }
 
-Frender::RenderObjectRef Frender::Renderer::createUnlitRenderObject(GLTools::Shader shader, MeshRef mesh, uint32_t mat, glm::mat4 transform)
+Frender::RenderObjectRef Frender::Renderer::createUnlitRenderObject(GLTools::Shader shader, MeshRef mesh, uint32_t mat,
+                                                                    glm::mat4 transform)
 {
 
-    auto obj = _addRenderObject<ROInfo, ROInfoGPU>(funlit_scene_tree, {0, transform}, {transform, transform}, shader, mesh, mat, transform);
+    auto obj = _addRenderObject<ROInfo, ROInfoGPU>(funlit_scene_tree, {0, transform}, {transform, transform}, shader,
+                                                   mesh, mat, transform);
     obj.loc.type = Unlit;
     return obj;
 }
 
-Frender::RenderObjectRef Frender::Renderer::createLitRenderObject(GLTools::Shader shader, MeshRef mesh, uint32_t mat, glm::mat4 transform)
+Frender::RenderObjectRef Frender::Renderer::createLitRenderObject(GLTools::Shader shader, MeshRef mesh, uint32_t mat,
+                                                                  glm::mat4 transform)
 {
     if (getMaterial(mat)->type == Bulk)
     {
@@ -544,18 +545,38 @@ Frender::RenderObjectRef Frender::Renderer::createLitRenderObject(GLTools::Shade
         return {};
     }
 
-    auto obj = _addRenderObject<ROInfoLit, ROInfoGPULit>(flit_scene_tree, {0, transform}, {transform, transform}, shader, mesh, mat, transform, 10);
+    auto obj = _addRenderObject<ROInfoLit, ROInfoGPULit>(flit_scene_tree, {0, transform}, {transform, transform},
+                                                         shader, mesh, mat, transform, 10);
     obj.loc.type = ForwardLit;
 
-    ROInfoLit* item = &flit_scene_tree[*obj.loc.shader_section].mats[*obj.loc.mat_section].meshes[*obj.loc.mesh_section].cpu_info[*obj.loc.index];
-    item->maxima_indexes = addExtrema({Extrema::Maxima, Extrema::Object, item->bounding_box.max_pos, 0, {ForwardLit, obj.loc.shader_section, obj.loc.mat_section, obj.loc.mesh_section, obj.loc.index}});
-    item->minima_indexes = addExtrema({Extrema::Minima, Extrema::Object, item->bounding_box.min_pos, 0, {ForwardLit, obj.loc.shader_section, obj.loc.mat_section, obj.loc.mesh_section, obj.loc.index}});
+    ROInfoLit* item = &flit_scene_tree[*obj.loc.shader_section]
+                           .mats[*obj.loc.mat_section]
+                           .meshes[*obj.loc.mesh_section]
+                           .cpu_info[*obj.loc.index];
+
+    // TODO: Make these actually do something
+    item->maxima_indexes =
+        addExtrema({Extrema::Maxima,
+                    Extrema::Object,
+                    item->bounding_box.max_pos,
+                    0,
+                    nullptr,
+                    {ForwardLit, obj.loc.shader_section, obj.loc.mat_section, obj.loc.mesh_section, obj.loc.index}});
+    item->minima_indexes =
+        addExtrema({Extrema::Minima,
+                    Extrema::Object,
+                    item->bounding_box.min_pos,
+                    0,
+                    nullptr,
+                    {ForwardLit, obj.loc.shader_section, obj.loc.mat_section, obj.loc.mesh_section, obj.loc.index}});
 
     return obj;
 }
 
 template <typename ROCpu, typename ROGpu>
-Frender::RenderObjectRef Frender::Renderer::_addRenderObject(std::vector<ShaderSection<MatSection<MeshSection<ROCpu, ROGpu>>>>& scene, ROCpu cpu, ROGpu gpu, GLTools::Shader shader, MeshRef mesh, uint32_t mat, glm::mat4 transform, int rows)
+Frender::RenderObjectRef Frender::Renderer::_addRenderObject(
+    std::vector<ShaderSection<MatSection<MeshSection<ROCpu, ROGpu>>>>& scene, ROCpu cpu, ROGpu gpu,
+    GLTools::Shader shader, MeshRef mesh, uint32_t mat, glm::mat4 transform, int rows)
 {
     // Find the correct shader section, and create if it doesn't exist
     int* shader_section_index = nullptr;
@@ -594,7 +615,8 @@ Frender::RenderObjectRef Frender::Renderer::_addRenderObject(std::vector<ShaderS
     {
         // Add a new mat section
         int* id = new int(scene.at(*shader_section_index).mats.size());
-        scene.at(*shader_section_index).mats.push_back(MatSection<MeshSection<ROCpu, ROGpu>> {{mat, m->uniforms.getRef(), m->shader}, {}, id});
+        scene.at(*shader_section_index)
+            .mats.push_back(MatSection<MeshSection<ROCpu, ROGpu>>{{mat, m->uniforms.getRef(), m->shader}, {}, id});
         mat_section_index = id;
     }
 
@@ -629,7 +651,7 @@ Frender::RenderObjectRef Frender::Renderer::_addRenderObject(std::vector<ShaderS
 
         int* id = new int(ms->meshes.size());
         auto v = new GLTools::VertexArray();
-        ms->meshes.push_back(MeshSection<ROCpu, ROGpu> {mesh, v, {}, gpu_buffer, id});
+        ms->meshes.push_back(MeshSection<ROCpu, ROGpu>{mesh, v, {}, gpu_buffer, id});
         int index = ms->meshes.size() - 1;
 
         GLERRORCHECK();
@@ -654,13 +676,13 @@ Frender::RenderObjectRef Frender::Renderer::_addRenderObject(std::vector<ShaderS
     cpu.bounding_box.transformBoundingBox(transform);
     mes->cpu_info.push_back(cpu);
     mes->gpu_buffer->pushBack(gpu);
-    mes->indicies.push_back(id);
 
     return {Unlit, shader_section_index, mat_section_index, mesh_section_index, id, this};
 }
 
 template <typename ROCpu, typename ROGpu>
-void Frender::Renderer::_destroyRenderObject(std::vector<ShaderSection<MatSection<MeshSection<ROCpu, ROGpu>>>>& scene, RenderObjectRef ro)
+void Frender::Renderer::_destroyRenderObject(std::vector<ShaderSection<MatSection<MeshSection<ROCpu, ROGpu>>>>& scene,
+                                             RenderObjectRef ro)
 {
     if (ro.renderer == nullptr)
     {
@@ -668,8 +690,9 @@ void Frender::Renderer::_destroyRenderObject(std::vector<ShaderSection<MatSectio
     }
 
     // Work backwards
-    MeshSection<ROCpu, ROGpu>* mes = &scene[*ro.loc.shader_section].mats[*ro.loc.mat_section].meshes[*ro.loc.mesh_section];
-    
+    MeshSection<ROCpu, ROGpu>* mes =
+        &scene[*ro.loc.shader_section].mats[*ro.loc.mat_section].meshes[*ro.loc.mesh_section];
+
     // Find our item
     int found_index = -1;
     for (auto i : mes->cpu_info)
@@ -680,7 +703,6 @@ void Frender::Renderer::_destroyRenderObject(std::vector<ShaderSection<MatSectio
 
             // Delete the item and the index
             mes->gpu_buffer->pop(*i.index);
-            mes->indicies.erase(mes->indicies.begin() + *i.index);
             *i.index = -1;
             delete i.index;
         }
@@ -700,7 +722,7 @@ void Frender::Renderer::_destroyRenderObject(std::vector<ShaderSection<MatSectio
         mes->vao->destroy(); // Do I re-use VertexArrays?
         mes->gpu_buffer->destroy();
         // TODO: Garbage collection for meshes
-        
+
         // Update the indexes of the rest of them
         auto mats = &scene[*ro.loc.shader_section].mats[*ro.loc.mat_section];
         mats->meshes.erase(mats->meshes.begin() + *ro.loc.mesh_section);
@@ -715,7 +737,7 @@ void Frender::Renderer::_destroyRenderObject(std::vector<ShaderSection<MatSectio
         {
             // Delete the mat section
             // TODO: Garbage collection for mats
-            
+
             // Update the indexes of the rest of them
             auto shs = &scene[*ro.loc.shader_section];
             shs->mats.erase(shs->mats.begin() + *ro.loc.mat_section);
@@ -730,7 +752,7 @@ void Frender::Renderer::_destroyRenderObject(std::vector<ShaderSection<MatSectio
             {
                 // Delete the shader section
                 // TODO: Garbage collection for shader
-                
+
                 // Update the indexes of the rest of them
                 scene.erase(scene.begin() + *ro.loc.shader_section);
 
@@ -747,16 +769,20 @@ void Frender::Renderer::destroyRenderObject(RenderObjectRef ro)
 {
     switch (ro.loc.type)
     {
-        case (Lit):
-            _destroyRenderObject(scene_tree, ro); return;
-        
-        case (Unlit):
-            _destroyRenderObject(funlit_scene_tree, ro); return;
-        
-        case (ForwardLit):
-            _destroyRenderObject(flit_scene_tree, ro); return;
+    case (Lit):
+        _destroyRenderObject(scene_tree, ro);
+        return;
 
-        default: break;
+    case (Unlit):
+        _destroyRenderObject(funlit_scene_tree, ro);
+        return;
+
+    case (ForwardLit):
+        _destroyRenderObject(flit_scene_tree, ro);
+        return;
+
+    default:
+        break;
     }
 }
 
@@ -764,13 +790,27 @@ Frender::RenderObjectRef Frender::Renderer::duplicateRenderObject(RenderObjectRe
 {
     if (ro.loc.type == Lit)
     {
-        return createUnlitRenderObject(scene_tree[*ro.loc.shader_section].shader, scene_tree[*ro.loc.shader_section].mats[*ro.loc.mat_section].meshes[*ro.loc.mesh_section].mesh,
-            scene_tree[*ro.loc.shader_section].mats[*ro.loc.mat_section].mat.mat_ref, scene_tree[*ro.loc.shader_section].mats[*ro.loc.mat_section].meshes[*ro.loc.mesh_section].cpu_info[*ro.loc.index].model);
+        return createUnlitRenderObject(
+            scene_tree[*ro.loc.shader_section].shader,
+            scene_tree[*ro.loc.shader_section].mats[*ro.loc.mat_section].meshes[*ro.loc.mesh_section].mesh,
+            scene_tree[*ro.loc.shader_section].mats[*ro.loc.mat_section].mat.mat_ref,
+            scene_tree[*ro.loc.shader_section]
+                .mats[*ro.loc.mat_section]
+                .meshes[*ro.loc.mesh_section]
+                .cpu_info[*ro.loc.index]
+                .model);
     }
     else
     {
-        return createUnlitRenderObject(funlit_scene_tree[*ro.loc.shader_section].shader, funlit_scene_tree[*ro.loc.shader_section].mats[*ro.loc.mat_section].meshes[*ro.loc.mesh_section].mesh,
-            funlit_scene_tree[*ro.loc.shader_section].mats[*ro.loc.mat_section].mat.mat_ref, funlit_scene_tree[*ro.loc.shader_section].mats[*ro.loc.mat_section].meshes[*ro.loc.mesh_section].cpu_info[*ro.loc.index].model);
+        return createUnlitRenderObject(
+            funlit_scene_tree[*ro.loc.shader_section].shader,
+            funlit_scene_tree[*ro.loc.shader_section].mats[*ro.loc.mat_section].meshes[*ro.loc.mesh_section].mesh,
+            funlit_scene_tree[*ro.loc.shader_section].mats[*ro.loc.mat_section].mat.mat_ref,
+            funlit_scene_tree[*ro.loc.shader_section]
+                .mats[*ro.loc.mat_section]
+                .meshes[*ro.loc.mesh_section]
+                .cpu_info[*ro.loc.index]
+                .model);
     }
 }
 
@@ -778,44 +818,57 @@ Frender::RenderObjectTraits Frender::Renderer::getRenderObjectTraits(RenderObjec
 {
     if (ro.loc.type == Lit)
     {
-        if (*ro.loc.shader_section >= scene_tree.size()
-            || *ro.loc.mat_section >= scene_tree[*ro.loc.shader_section].mats.size()
-            || *ro.loc.mesh_section >= scene_tree[*ro.loc.shader_section].mats[*ro.loc.mat_section].meshes[*ro.loc.mesh_section].cpu_info.size())
+        if (*ro.loc.shader_section >= scene_tree.size() ||
+            *ro.loc.mat_section >= scene_tree[*ro.loc.shader_section].mats.size() ||
+            *ro.loc.mesh_section >= scene_tree[*ro.loc.shader_section]
+                                        .mats[*ro.loc.mat_section]
+                                        .meshes[*ro.loc.mesh_section]
+                                        .cpu_info.size())
         {
             std::cout << "Very, very bad\n";
         }
-        
-        return {ro.loc.type,
-            scene_tree[*ro.loc.shader_section].shader,
-            scene_tree[*ro.loc.shader_section].mats[*ro.loc.mat_section].mat.mat_ref,
-            scene_tree[*ro.loc.shader_section].mats[*ro.loc.mat_section].meshes[*ro.loc.mesh_section].mesh,
-            scene_tree[*ro.loc.shader_section].mats[*ro.loc.mat_section].meshes[*ro.loc.mesh_section].cpu_info[*ro.loc.index].model};
+
+        return {ro.loc.type, scene_tree[*ro.loc.shader_section].shader,
+                scene_tree[*ro.loc.shader_section].mats[*ro.loc.mat_section].mat.mat_ref,
+                scene_tree[*ro.loc.shader_section].mats[*ro.loc.mat_section].meshes[*ro.loc.mesh_section].mesh,
+                scene_tree[*ro.loc.shader_section]
+                    .mats[*ro.loc.mat_section]
+                    .meshes[*ro.loc.mesh_section]
+                    .cpu_info[*ro.loc.index]
+                    .model};
     }
     else if (ro.loc.type == ForwardLit)
     {
 
-        return {ro.loc.type,
-            flit_scene_tree[*ro.loc.shader_section].shader,
-            flit_scene_tree[*ro.loc.shader_section].mats[*ro.loc.mat_section].mat.mat_ref,
-            flit_scene_tree[*ro.loc.shader_section].mats[*ro.loc.mat_section].meshes[*ro.loc.mesh_section].mesh,
-            flit_scene_tree[*ro.loc.shader_section].mats[*ro.loc.mat_section].meshes[*ro.loc.mesh_section].cpu_info[*ro.loc.index].model};
+        return {ro.loc.type, flit_scene_tree[*ro.loc.shader_section].shader,
+                flit_scene_tree[*ro.loc.shader_section].mats[*ro.loc.mat_section].mat.mat_ref,
+                flit_scene_tree[*ro.loc.shader_section].mats[*ro.loc.mat_section].meshes[*ro.loc.mesh_section].mesh,
+                flit_scene_tree[*ro.loc.shader_section]
+                    .mats[*ro.loc.mat_section]
+                    .meshes[*ro.loc.mesh_section]
+                    .cpu_info[*ro.loc.index]
+                    .model};
     }
     else
     {
-        return {ro.loc.type,
-            funlit_scene_tree[*ro.loc.shader_section].shader,
-            funlit_scene_tree[*ro.loc.shader_section].mats[*ro.loc.mat_section].mat.mat_ref,
-            funlit_scene_tree[*ro.loc.shader_section].mats[*ro.loc.mat_section].meshes[*ro.loc.mesh_section].mesh,
-            funlit_scene_tree[*ro.loc.shader_section].mats[*ro.loc.mat_section].meshes[*ro.loc.mesh_section].cpu_info[*ro.loc.index].model};
+        return {ro.loc.type, funlit_scene_tree[*ro.loc.shader_section].shader,
+                funlit_scene_tree[*ro.loc.shader_section].mats[*ro.loc.mat_section].mat.mat_ref,
+                funlit_scene_tree[*ro.loc.shader_section].mats[*ro.loc.mat_section].meshes[*ro.loc.mesh_section].mesh,
+                funlit_scene_tree[*ro.loc.shader_section]
+                    .mats[*ro.loc.mat_section]
+                    .meshes[*ro.loc.mesh_section]
+                    .cpu_info[*ro.loc.index]
+                    .model};
     }
 }
 
-uint32_t Frender::Renderer::createPointLight(glm::vec3 position, glm::vec3 color, float radius)
+Frender::LightRef Frender::Renderer::createPointLight(glm::vec3 position, glm::vec3 color, float radius)
 {
     radius *= 1.5;
     auto m = glm::scale(glm::translate(glm::mat4(), position), glm::vec3(radius));
 
-    point_lights.push_back({color, position, radius, m, light_index});
+    auto light_id = new int32_t(light_index);
+    point_lights.push_back({color, position, radius, m, light_id, nullptr, nullptr});
 
 #ifndef FLUX_NO_DEFFERED
     // New method: Add to buffer
@@ -823,31 +876,34 @@ uint32_t Frender::Renderer::createPointLight(glm::vec3 position, glm::vec3 color
 #endif
 
     // Add to Extrema list
-    addExtrema({Extrema::Minima, Extrema::Light, position - glm::vec3(radius), static_cast<int>(point_lights.size() - 1), {}});
-    addExtrema({Extrema::Maxima, Extrema::Light, position + glm::vec3(radius), static_cast<int>(point_lights.size() - 1), {}});
+    point_lights[light_index].minima =
+        addExtrema({Extrema::Minima, Extrema::Light, position - glm::vec3(radius), light_id, nullptr, {}});
+    point_lights[light_index].maxima =
+        addExtrema({Extrema::Maxima, Extrema::Light, position + glm::vec3(radius), light_id, nullptr, {}});
 
     // Add to light buffer
     light_buffer.setArray("light_pos_dir_rad", light_index, glm::vec4(position.x, position.y, position.z, radius));
     light_buffer.setArray("light_color_type", light_index, glm::vec4(color.x, color.y, color.z, 0));
 
-    light_index ++;
-    return point_lights.size()-1;
+    light_index++;
+    return Frender::LightRef(this, Point, light_id);
 }
 
-uint32_t Frender::Renderer::createDirectionalLight(glm::vec3 color, glm::vec3 direction)
+Frender::LightRef Frender::Renderer::createDirectionalLight(glm::vec3 color, glm::vec3 direction)
 {
-    directional_lights.push_back({color, direction, light_index});
+    auto light_id = new int32_t(light_index);
+    directional_lights.push_back({color, direction, light_id});
 
     // Add to Extrema list
-    addExtrema({Extrema::Minima, Extrema::Light, glm::vec3(-1000000), light_index, {}});
-    addExtrema({Extrema::Maxima, Extrema::Light, glm::vec3(1000000), light_index, {}});
+    addExtrema({Extrema::Minima, Extrema::Light, glm::vec3(-1000000), light_id, nullptr, {}});
+    addExtrema({Extrema::Maxima, Extrema::Light, glm::vec3(1000000), light_id, nullptr, {}});
 
     // Add to light buffer
     light_buffer.setArray("light_pos_dir_rad", light_index, glm::vec4(direction.x, direction.y, direction.z, 0));
     light_buffer.setArray("light_color_type", light_index, glm::vec4(color.x, color.y, color.z, 1));
 
-    light_index ++;
-    return point_lights.size()-1;
+    light_index++;
+    return Frender::LightRef(this, Directional, light_id);
 }
 
 glm::mat4 Frender::RenderObjectRef::getTransform()
@@ -865,25 +921,118 @@ Frender::RenderObjectRef Frender::RenderObjectRef::duplicate()
     return renderer->duplicateRenderObject(*this);
 }
 
-glm::vec3 Frender::Renderer::addExtrema(Extrema e)
+glm::vec3* Frender::Renderer::addExtrema(Extrema e)
 {
     glm::vec3 output;
+
+    if (e.index == nullptr)
+    {
+        e.index = new glm::vec3();
+    }
 
     for (int i = 0; i < 3; i++)
     {
         // Add extrema in one axis
-        auto minima_it = std::upper_bound(broad_phase[i].begin(), broad_phase[i].end(), e,
-            [i] (const Extrema& value, Extrema& info)
-            {
-                return value.position[i] < info.position[i];
-            }
-        );
+        auto minima_it =
+            std::upper_bound(broad_phase[i].begin(), broad_phase[i].end(), e,
+                             [i](const Extrema& value, Extrema& info) { return value.position[i] < info.position[i]; });
 
         auto mit = broad_phase[i].insert(minima_it, e);
         output[i] = mit - broad_phase[i].begin();
+        (*e.index)[i] = output[i];
+
+        // Update the rest of the indicies
+        for (int j = output[i] + 1; j < broad_phase[i].size(); j++)
+        {
+            (*broad_phase[i][j].index)[i] = j;
+        }
     }
 
-    return output;
+    return e.index;
+}
+
+void Frender::Renderer::removeExtrema(glm::vec3* ex_index)
+{
+    // Remove it
+    for (int i = 0; i < 3; i++)
+    {
+        broad_phase[i].erase(broad_phase[i].begin() + (*ex_index)[i]);
+
+        // Update the rest of the indices
+        for (int j = (*ex_index)[i]; j < broad_phase[i].size(); j++)
+        {
+            (*broad_phase[i][j].index)[i] = j;
+        }
+    }
+
+    // Free the memory
+    delete ex_index;
+}
+
+glm::vec3 Frender::Renderer::getLightPosition(LightRef light)
+{
+    if (light.type == Directional)
+    {
+        return glm::vec3(0, 0, 0);
+    }
+
+    // Assume it's a point light
+    return point_lights[*light.index].position;
+}
+
+void Frender::Renderer::setLightPosition(LightRef light, glm::vec3 position)
+{
+    if (light.type == Directional)
+    {
+        return;
+    }
+
+    removeExtrema(point_lights[*light.index].minima);
+    removeExtrema(point_lights[*light.index].maxima);
+
+    // Change the position
+    point_lights[*light.index].position = position;
+
+    // Re-add the extrema
+    float radius = point_lights[*light.index].radius;
+    auto light_id = point_lights[*light.index].light_id;
+    auto m = glm::scale(glm::translate(glm::mat4(), position), glm::vec3(radius));
+    point_lights[*light.index].minima =
+        addExtrema({Extrema::Minima, Extrema::Light, position - glm::vec3(radius), light_id, nullptr, {}});
+    point_lights[*light.index].maxima =
+        addExtrema({Extrema::Maxima, Extrema::Light, position + glm::vec3(radius), light_id, nullptr, {}});
+
+#ifndef FLUX_NO_DEFERED
+    point_light_buffer.set(*light.index, {point_lights[*light.index].color, position, radius, m});
+#endif
+
+    glm::vec3 color = point_lights[*light.index].color;
+
+    // Add to light buffer
+    light_buffer.setArray("light_pos_dir_rad", *light.index, glm::vec4(position.x, position.y, position.z, radius));
+    light_buffer.setArray("light_color_type", *light.index, glm::vec4(color.x, color.y, color.z, 0));
+}
+
+glm::vec3 Frender::Renderer::getLightDirection(LightRef light)
+{
+    if (light.type != Directional)
+    {
+        return glm::vec3(0, 0, 0);
+    }
+
+    // Assume it's a directional light
+    return directional_lights[*light.index].direction;
+}
+
+void Frender::Renderer::setLightDirection(LightRef light, glm::vec3 direction)
+{
+    if (light.type != Directional)
+    {
+        return;
+    }
+
+    directional_lights[*light.index].direction = direction;
+    light_buffer.setArray("light_pos_dir_rad", *light.index, glm::vec4(direction.x, direction.y, direction.z, 0));
 }
 
 void Frender::Renderer::setSkybox(int width, int height, float* data)

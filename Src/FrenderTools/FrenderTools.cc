@@ -1,5 +1,5 @@
-#include "Frender/Frender.hh"
 #include "Frender/FrenderTools.hh"
+#include "Frender/Frender.hh"
 #include "glm/detail/type_mat.hpp"
 
 // =================================================
@@ -18,7 +18,6 @@ void FrenderTools::RenderGroup::addRenderObject(Frender::RenderObjectRef ro)
 
     render_objects.push_back({ro_local_transform, ro});
 }
-
 
 void FrenderTools::RenderGroup::addRenderGroup(RenderGroup rg)
 {
@@ -61,4 +60,20 @@ void FrenderTools::RenderGroup::applyTransform()
         i.thing.setGlobalTransform(translator);
         i.thing.applyTransform();
     }
+}
+
+void FrenderTools::RenderGroup::destroy()
+{
+    for (auto i : render_objects)
+    {
+        i.thing.renderer->destroyRenderObject(i.thing);
+    }
+
+    for (auto i : render_groups)
+    {
+        i.thing.destroy();
+    }
+
+    render_objects = {};
+    render_groups = {};
 }

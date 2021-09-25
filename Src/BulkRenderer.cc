@@ -29,12 +29,18 @@ void Frender::Renderer::bulkRender()
 
     // Create frustum planes - this probably won't work
     // Also, try not to do it _every frame_
-    for (int i = 4; i--; ) frustum_planes[0][i]    = fcvp[i][3] + fcvp[i][0];
-    for (int i = 4; i--; ) frustum_planes[1][i]    = fcvp[i][3] - fcvp[i][0]; 
-    for (int i = 4; i--; ) frustum_planes[2][i]    = fcvp[i][3] + fcvp[i][1];
-    for (int i = 4; i--; ) frustum_planes[3][i]    = fcvp[i][3] - fcvp[i][1];
-    for (int i = 4; i--; ) frustum_planes[4][i]    = fcvp[i][3] + fcvp[i][2];
-    for (int i = 4; i--; ) frustum_planes[5][i]    = fcvp[i][3] - fcvp[i][2];
+    for (int i = 4; i--;)
+        frustum_planes[0][i] = fcvp[i][3] + fcvp[i][0];
+    for (int i = 4; i--;)
+        frustum_planes[1][i] = fcvp[i][3] - fcvp[i][0];
+    for (int i = 4; i--;)
+        frustum_planes[2][i] = fcvp[i][3] + fcvp[i][1];
+    for (int i = 4; i--;)
+        frustum_planes[3][i] = fcvp[i][3] - fcvp[i][1];
+    for (int i = 4; i--;)
+        frustum_planes[4][i] = fcvp[i][3] + fcvp[i][2];
+    for (int i = 4; i--;)
+        frustum_planes[5][i] = fcvp[i][3] - fcvp[i][2];
 
     stage1_bulk_shader.enable();
     // stage1_bulk_shader.setUniform(stage1_bulk_shader.getUniformLocation("cam_pos"), camera * glm::vec4(0, 0, 0, 1));
@@ -55,7 +61,7 @@ void Frender::Renderer::bulkRender()
 
     // Disable writing to the depth buffer
     glDepthMask(GL_FALSE);
-    
+
     // glDisable(GL_CULL_FACE);
     // glEnable(GL_C)
     // glDisable(GL_DEPTH_TEST);
@@ -115,7 +121,7 @@ void Frender::Renderer::bulkRender()
     stage2_light_shader.setUniform(light_uniforms.width, width);
     stage2_light_shader.setUniform(light_uniforms.height, height);
     stage2_light_shader.setUniform(light_uniforms.cam_pos, camera * glm::vec4(0, 0, 0, 1));
-    
+
     // Run lighting pass
     // New method: Draw instanced
     // Update all the uniforms
@@ -220,9 +226,10 @@ void Frender::Renderer::bulkRender()
     GLERRORCHECK();
     stage3_tex.enable();
     GLERRORCHECK();
-    
+
     // Set bloom parameters
-    stage3_shader.setUniform(use_fxaa ? bloom_exposure_loc_fxaa : bloom_exposure_loc, bloom_blur_amount == 0 ? 0 : bloom_exposure);
+    stage3_shader.setUniform(use_fxaa ? bloom_exposure_loc_fxaa : bloom_exposure_loc,
+                             bloom_blur_amount == 0 ? 0 : bloom_exposure);
 
     // glDisable(GL_DEPTH_TEST);
     glDrawElements(GL_TRIANGLES, plane.num_indices, GL_UNSIGNED_INT, 0);
@@ -243,7 +250,7 @@ void Frender::Renderer::geometryPass(glm::mat4 vp)
             {
                 // Update transforms
                 int to_draw = 0;
-                int max = mesh.gpu_buffer->size()-1;
+                int max = mesh.gpu_buffer->size() - 1;
                 for (auto ro : mesh.cpu_info)
                 {
                     // Frustum culling
@@ -256,7 +263,7 @@ void Frender::Renderer::geometryPass(glm::mat4 vp)
                         // No point is in the view frustum, so we can safely cull
                         // Add to the end of the buffer
                         mesh.gpu_buffer->set(max, {glm::mat4(), ro.model});
-                        max --;
+                        max--;
                     }
                     else
                     {
@@ -295,7 +302,7 @@ void Frender::Renderer::unlitRender(glm::mat4 vp)
             {
                 // Update transforms
                 int to_draw = 0;
-                int max = mesh.gpu_buffer->size()-1;
+                int max = mesh.gpu_buffer->size() - 1;
                 for (auto ro : mesh.cpu_info)
                 {
                     // Frustum culling
@@ -308,7 +315,7 @@ void Frender::Renderer::unlitRender(glm::mat4 vp)
                         // No point is in the view frustum, so we can safely cull
                         // Add to the end of the buffer
                         mesh.gpu_buffer->set(max, {glm::mat4(), ro.model});
-                        max --;
+                        max--;
                     }
                     else
                     {
@@ -333,7 +340,6 @@ void Frender::Renderer::unlitRender(glm::mat4 vp)
     }
 }
 
-
 void Frender::Renderer::litRender(glm::mat4 vp)
 {
     for (auto shdr : flit_scene_tree)
@@ -347,7 +353,7 @@ void Frender::Renderer::litRender(glm::mat4 vp)
         {
             mat.mat.uniforms.enable(0);
             GLERRORCHECK();
-            
+
             getMaterial(mat.mat.mat_ref)->textures.set(0, irradiance_cubemap);
             getMaterial(mat.mat.mat_ref)->textures.set(1, prefilter_cubemap);
             getMaterial(mat.mat.mat_ref)->textures.enable();
@@ -358,7 +364,7 @@ void Frender::Renderer::litRender(glm::mat4 vp)
             {
                 // Update transforms
                 int to_draw = 0;
-                int max = mesh.gpu_buffer->size()-1;
+                int max = mesh.gpu_buffer->size() - 1;
                 for (auto ro : mesh.cpu_info)
                 {
                     // Frustum culling
@@ -377,16 +383,16 @@ void Frender::Renderer::litRender(glm::mat4 vp)
                     // }
                     // else
                     // {
-                        // We do have to draw it
-                        auto mvp = vp * ro.model;
+                    // We do have to draw it
+                    auto mvp = vp * ro.model;
 
-                        // We have to keep the light calculations intact
-                        auto gput = mesh.gpu_buffer->get(to_draw);
-                        gput.model = ro.model;
-                        gput.mvp = mvp;
-                        mesh.gpu_buffer->set(to_draw, gput);
-                        GLERRORCHECK();
-                        to_draw++;
+                    // We have to keep the light calculations intact
+                    auto gput = mesh.gpu_buffer->get(to_draw);
+                    gput.model = ro.model;
+                    gput.mvp = mvp;
+                    mesh.gpu_buffer->set(to_draw, gput);
+                    GLERRORCHECK();
+                    to_draw++;
                     // }
                 }
 
@@ -421,16 +427,19 @@ void Frender::Renderer::calculateLighting(glm::mat4 vp)
             {
                 if (e.et == Extrema::Minima)
                 {
-                    active_lights.push_back(e.light);
+                    active_lights.push_back(*e.light);
                 }
                 else
                 {
-                    active_lights.erase(std::find(active_lights.begin(), active_lights.end(), e.light));
+                    active_lights.erase(std::find(active_lights.begin(), active_lights.end(), *e.light));
                 }
             }
             else
             {
-                ROInfoLit* item = &flit_scene_tree[*e.loc.shader_section].mats[*e.loc.mat_section].meshes[*e.loc.mesh_section].cpu_info[*e.loc.index];
+                ROInfoLit* item = &flit_scene_tree[*e.loc.shader_section]
+                                       .mats[*e.loc.mat_section]
+                                       .meshes[*e.loc.mesh_section]
+                                       .cpu_info[*e.loc.index];
 
                 // Add all the lights colliding on the X axis
                 if (first)
@@ -454,7 +463,8 @@ void Frender::Renderer::calculateLighting(glm::mat4 vp)
                         // Make sure we don't add anything twice
                         for (auto n : active_lights)
                         {
-                            if (std::find(item->complete_lights.begin(), item->complete_lights.end(), n) == item->complete_lights.end())
+                            if (std::find(item->complete_lights.begin(), item->complete_lights.end(), n) ==
+                                item->complete_lights.end())
                             {
                                 for (int nn = 0; nn < 8; nn++)
                                 {
@@ -501,8 +511,9 @@ void Frender::Renderer::calculateLighting(glm::mat4 vp)
                         for (auto nn : active_lights)
                         {
                             // If it's active, not in lights but _is_ in complete_lights, then it needs to be put back
-                            if (std::find(item->lights.begin(), item->lights.end(), nn) == item->lights.end()
-                                && std::find(item->complete_lights.begin(), item->complete_lights.end(), nn) != item->complete_lights.end())
+                            if (std::find(item->lights.begin(), item->lights.end(), nn) == item->lights.end() &&
+                                std::find(item->complete_lights.begin(), item->complete_lights.end(), nn) !=
+                                    item->complete_lights.end())
                             {
                                 // Re-add it
                                 for (int n = 0; n < 8; n++)
@@ -523,7 +534,10 @@ void Frender::Renderer::calculateLighting(glm::mat4 vp)
                             // All light collisions are calculated
                             // So we can put it in GPUInfo
 
-                            Frender::ROInfoGPULit gpu_item = flit_scene_tree[*e.loc.shader_section].mats[*e.loc.mat_section].meshes[*e.loc.mesh_section].gpu_buffer->get(*e.loc.index);
+                            Frender::ROInfoGPULit gpu_item = flit_scene_tree[*e.loc.shader_section]
+                                                                 .mats[*e.loc.mat_section]
+                                                                 .meshes[*e.loc.mesh_section]
+                                                                 .gpu_buffer->get(*e.loc.index);
                             gpu_item.lights1[0] = item->complete_lights[0];
                             gpu_item.lights1[1] = item->complete_lights[1];
                             gpu_item.lights1[2] = item->complete_lights[2];
@@ -534,7 +548,10 @@ void Frender::Renderer::calculateLighting(glm::mat4 vp)
                             gpu_item.lights2[2] = item->complete_lights[6];
                             gpu_item.lights2[3] = item->complete_lights[7];
 
-                            flit_scene_tree[*e.loc.shader_section].mats[*e.loc.mat_section].meshes[*e.loc.mesh_section].gpu_buffer->set(*e.loc.index, gpu_item);
+                            flit_scene_tree[*e.loc.shader_section]
+                                .mats[*e.loc.mat_section]
+                                .meshes[*e.loc.mesh_section]
+                                .gpu_buffer->set(*e.loc.index, gpu_item);
                         }
                     }
                 }
@@ -542,25 +559,27 @@ void Frender::Renderer::calculateLighting(glm::mat4 vp)
         }
 
         first = false;
-        axis ++;
+        axis++;
     }
 }
 
 bool Frender::Renderer::frustumCull(glm::vec3 min, glm::vec3 max)
 {
     // Copy and pasted from a sketchy site
-    // bool inside = true; //test all 6 frustum planes 
-    for (int i = 0; i<6; i++) 
+    // bool inside = true; //test all 6 frustum planes
+    for (int i = 0; i < 6; i++)
     {
-        //pick closest point to plane and check if it behind the plane
-        //if yes - object outside frustum 
-        float d = glm::max(min.x * frustum_planes[i].x, max.x * frustum_planes[i].x) + glm::max(min.y * frustum_planes[i].y, max.y * frustum_planes[i].y) + glm::max(min.z * frustum_planes[i].z, max.z * frustum_planes[i].z) + frustum_planes[i].w;
+        // pick closest point to plane and check if it behind the plane
+        // if yes - object outside frustum
+        float d = glm::max(min.x * frustum_planes[i].x, max.x * frustum_planes[i].x) +
+                  glm::max(min.y * frustum_planes[i].y, max.y * frustum_planes[i].y) +
+                  glm::max(min.z * frustum_planes[i].z, max.z * frustum_planes[i].z) + frustum_planes[i].w;
         // inside &= d > 0;
         if (d < -1)
         {
-            return false; //with flag works faster
+            return false; // with flag works faster
         }
-    } 
+    }
     return true;
 }
 
