@@ -72,7 +72,7 @@ embed_shader("skybox.vert" "SkyboxVert.h" "SkyboxVertSrc")
 # Disable the defered render
 # add_compile_definitions(FRENDER_NO_DEFERED)
 
-add_library(Frender 
+add_library(Frender STATIC
     Src/Window.cc
     Src/Renderer.cc
     Src/GLTools.cc
@@ -90,12 +90,14 @@ set(GLFW_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
 # For Wayland
 set(GLFW_USE_WAYLAND OFF CACHE BOOL "" FORCE)
 
-add_subdirectory(ThirdParty/glfw)
-target_link_libraries(Frender glfw)
-
 # Glad
 add_subdirectory(ThirdParty/glad)
 target_link_libraries(Frender glad)
+target_link_libraries(Frender ${CMAKE_DL_LIBS})
+
+# GLFW
+add_subdirectory(ThirdParty/glfw)
+target_link_libraries(Frender glfw)
 
 # GLM
 # Make sure GLM always creates matricies with values that actually work

@@ -10,20 +10,20 @@
 #include <unordered_map>
 
 // A stupid solution to a stupid problem
-static std::unordered_map<GLFWwindow *, Frender::Window *> window_windows;
+static std::unordered_map<GLFWwindow*, Frender::Window*> window_windows;
 
-void error_callback(int error, const char *description)
+void error_callback(int error, const char* description)
 {
     fprintf(stderr, "Error: %s\n", description);
 }
 
-void framebuffer_size_callback(GLFWwindow *window, int width, int height)
+void framebuffer_size_callback(GLFWwindow* window, int width, int height)
 {
     glViewport(0, 0, width, height);
     window_windows[window]->_sizeCallback(width, height);
 }
 
-void key_callback(GLFWwindow *window, int key, int scancode, int action, int mods)
+void key_callback(GLFWwindow* window, int key, int scancode, int action, int mods)
 {
     if (action == GLFW_PRESS)
     {
@@ -35,7 +35,7 @@ void key_callback(GLFWwindow *window, int key, int scancode, int action, int mod
     }
 }
 
-void button_callback(GLFWwindow *window, int key, int action, int mods)
+void button_callback(GLFWwindow* window, int key, int action, int mods)
 {
     if (action == GLFW_PRESS)
     {
@@ -47,7 +47,7 @@ void button_callback(GLFWwindow *window, int key, int action, int mods)
     }
 }
 
-void cursor_enter_callback(GLFWwindow *window, int entered)
+void cursor_enter_callback(GLFWwindow* window, int entered)
 {
     // if (entered)
     // {
@@ -230,7 +230,7 @@ void Frender::Window::_resetCursorMode()
     setMouseMode(mmode);
 }
 
-void showFPS(GLFWwindow *window)
+void showFPS(GLFWwindow* window)
 {
     static double previousSeconds = 0.0;
     static int frameCount = 0;
@@ -262,7 +262,7 @@ void showFPS(GLFWwindow *window)
     frameCount++;
 }
 
-void Frender::Window::mainloop(Renderer *render, std::function<void(float)> fn)
+void Frender::Window::mainloop(Renderer* render, std::function<void(float)> fn)
 {
     renderer = render;
 
@@ -299,9 +299,9 @@ void Frender::Window::mainloop(Renderer *render, std::function<void(float)> fn)
     }
 }
 
-void Frender::Window::setWindowTitle(const std::string &title)
+void Frender::Window::setWindowTitle(const std::string& title)
 {
-    const char *x = title.c_str();
+    const char* x = title.c_str();
     glfwSetWindowTitle(window, x);
 }
 
