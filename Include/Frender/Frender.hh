@@ -509,6 +509,11 @@ class Renderer
     void setLightDirection(LightRef light, glm::vec3 direction);
 
     /**
+    Removes a light. And remaining LightRefs will become dangling
+    */
+    void destroyLight(LightRef light);
+
+    /**
     Sets the skybox
     */
     void setSkybox(int width, int height, float* data);
@@ -656,7 +661,7 @@ class Renderer
     std::vector<PointLight> point_lights;
     std::vector<DirectionLight> directional_lights;
     GLTools::UniformBuffer light_buffer;
-    int light_index; // TODO: id reuse queue
+    int light_index;
 
     // Skybox and ibl state
     bool has_skybox = false;

@@ -886,7 +886,7 @@ Frender::LightRef Frender::Renderer::createPointLight(glm::vec3 position, glm::v
     light_buffer.setArray("light_color_type", light_index, glm::vec4(color.x, color.y, color.z, 0));
 
     light_index++;
-    return Frender::LightRef(this, Point, light_id);
+    return Frender::LightRef(this, Point, new int32_t(point_lights.size() - 1));
 }
 
 Frender::LightRef Frender::Renderer::createDirectionalLight(glm::vec3 color, glm::vec3 direction)
@@ -903,7 +903,7 @@ Frender::LightRef Frender::Renderer::createDirectionalLight(glm::vec3 color, glm
     light_buffer.setArray("light_color_type", light_index, glm::vec4(color.x, color.y, color.z, 1));
 
     light_index++;
-    return Frender::LightRef(this, Directional, light_id);
+    return Frender::LightRef(this, Directional, new int32_t(directional_lights.size() - 1));
 }
 
 glm::mat4 Frender::RenderObjectRef::getTransform()
@@ -1009,8 +1009,73 @@ void Frender::Renderer::setLightPosition(LightRef light, glm::vec3 position)
     glm::vec3 color = point_lights[*light.index].color;
 
     // Add to light buffer
-    light_buffer.setArray("light_pos_dir_rad", *light.index, glm::vec4(position.x, position.y, position.z, radius));
-    light_buffer.setArray("light_color_type", *light.index, glm::vec4(color.x, color.y, color.z, 0));
+    light_buffer.setArray("light_pos_dir_rad", *light_id, glm::vec4(position.x, position.y, position.z, radius));
+    light_buffer.setArray("light_color_type", *light_id, glm::vec4(color.x, color.y, color.z, 0));
+}
+
+void Frender::Renderer::destroyLight(LightRef light)
+{
+    if (light.type == Point)
+    {
+        // Remove from sweep and prune
+        removeExtrema(point_lights[*light.index].minima);
+        removeExtrema(point_lights[*light.index].maxima);
+
+        // Remove from point_lights
+        point_lights.erase(point_lights.begin() + *light.index);
+
+        // Remove from light buffer and point_light_buffer
+#ifndef FLUX_NO_DEFERED
+        point_light_buffer.pop(*light.index);
+#endif
+
+        // Update the indexes of every other light
+        for (int i = *light.index; i < point_lights.size(); i++)
+        {
+            // Update index
+            *point_lights[i].light_id = i;
+
+            // Update it in VRAM
+            light_buffer.setArray("light_pos_dir_rad", i,
+                                  glm::vec4(point_lights[i].position.x, point_lights[i].position.y,
+                                            point_lights[i].position.z, point_lights[i].radius));
+            light_buffer.setArray(
+                "light_color_type", i,
+                glm::vec4(point_lights[i].color.x, point_lights[i].color.y, point_lights[i].color.z, 0));
+        }
+
+        // Set memory to -1 so that if it's accessed before it's reused it crashes there and then
+        *light.index = -1;
+        delete light.index;
+    }
+    else
+    {
+        // Remove from sweep and prune
+        removeExtrema(directional_lights[*light.index].minima);
+        removeExtrema(directional_lights[*light.index].maxima);
+
+        // Remove from directional_lights
+        directional_lights.erase(directional_lights.begin() + *light.index);
+
+        // Update the indexes of every other light
+        for (int i = *light.index; i < directional_lights.size(); i++)
+        {
+            // Update index
+            *directional_lights[i].light_id = i;
+
+            // Update it in VRAM
+            light_buffer.setArray("light_pos_dir_rad", i,
+                                  glm::vec4(directional_lights[i].direction.x, directional_lights[i].direction.y,
+                                            directional_lights[i].direction.z, 0));
+            light_buffer.setArray("light_color_type", i,
+                                  glm::vec4(directional_lights[i].color.x, directional_lights[i].color.y,
+                                            directional_lights[i].color.z, 1));
+        }
+
+        // Set memory to -1 so that if it's accessed before it's reused it crashes there and then
+        *light.index = -1;
+        delete light.index;
+    }
 }
 
 glm::vec3 Frender::Renderer::getLightDirection(LightRef light)
