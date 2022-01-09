@@ -81,17 +81,17 @@ Frender::Renderer::Renderer(int width, int height) : light_index(0)
     // Create forward shaders
     unlit = GLTools::Shader(UnlitVertSrc, UnlitFragSrc);
 
-    lit_shader = GLTools::Shader(LitVertSrc, LitFragSrc);
-    lit_uniforms.cam_pos = lit_shader.getUniformLocation("cam_pos");
+    // lit_shader = GLTools::Shader(LitVertSrc, LitFragSrc);
+    // lit_uniforms.cam_pos = lit_shader.getUniformLocation("cam_pos");
 
     // Create light buffer
-    light_buffer = GLTools::UniformBuffer(
-        lit_shader, "Lights",
-        {
-            {"light_pos_dir_rad", GLTools::Vec4Array, std::array<glm::vec4, FRENDER_MAX_UNIFORM_ARRAY>()},
-            {"light_color_type", GLTools::Vec4Array, std::array<glm::vec4, FRENDER_MAX_UNIFORM_ARRAY>()},
-        },
-        1);
+    // light_buffer = GLTools::UniformBuffer(
+    // lit_shader, "Lights",
+    // {
+    // {"light_pos_dir_rad", GLTools::Vec4Array, std::array<glm::vec4, FRENDER_MAX_UNIFORM_ARRAY>()},
+    // {"light_color_type", GLTools::Vec4Array, std::array<glm::vec4, FRENDER_MAX_UNIFORM_ARRAY>()},
+    // },
+    // 1);
 
     // Create plane
     std::vector<Frender::Vertex> vertices = {
@@ -361,7 +361,7 @@ uint32_t Frender::Renderer::createMaterial()
 {
 
 #ifdef FRENDER_NO_DEFERED
-    return createLitMaterial();
+    // return createLitMaterial();
 #endif
 
     Material mat;
@@ -511,9 +511,7 @@ Frender::MeshRef Frender::Renderer::createMesh(const std::vector<Vertex>& vertic
 
 Frender::RenderObjectRef Frender::Renderer::createRenderObject(MeshRef mesh, uint32_t mat, glm::mat4 transform)
 {
-#ifdef FRENDER_NO_DEFERED
-    return createLitRenderObject(mesh, mat, transform);
-#else
+    // return createLitRenderObject(mesh, mat, transform);
     if (getMaterial(mat)->shader.program != stage1_bulk_shader.program)
     {
         return createUnlitRenderObject(getMaterial(mat)->shader, mesh, mat, transform);
@@ -523,7 +521,6 @@ Frender::RenderObjectRef Frender::Renderer::createRenderObject(MeshRef mesh, uin
                                                    stage1_bulk_shader, mesh, mat, transform);
     obj.loc.type = Lit;
     return obj;
-#endif
 }
 
 Frender::RenderObjectRef Frender::Renderer::createUnlitRenderObject(GLTools::Shader shader, MeshRef mesh, uint32_t mat,
@@ -536,42 +533,42 @@ Frender::RenderObjectRef Frender::Renderer::createUnlitRenderObject(GLTools::Sha
     return obj;
 }
 
-Frender::RenderObjectRef Frender::Renderer::createLitRenderObject(GLTools::Shader shader, MeshRef mesh, uint32_t mat,
-                                                                  glm::mat4 transform)
-{
-    if (getMaterial(mat)->type == Bulk)
-    {
-        std::cerr << "Lit render objects require Detail materials\n";
-        return {};
-    }
+// Frender::RenderObjectRef Frender::Renderer::createLitRenderObject(GLTools::Shader shader, MeshRef mesh, uint32_t mat,
+// glm::mat4 transform)
+// {
+// if (getMaterial(mat)->type == Bulk)
+// {
+// std::cerr << "Lit render objects require Detail materials\n";
+// return {};
+// }
 
-    auto obj = _addRenderObject<ROInfoLit, ROInfoGPULit>(flit_scene_tree, {0, transform}, {transform, transform},
-                                                         shader, mesh, mat, transform, 10);
-    obj.loc.type = ForwardLit;
+// auto obj = _addRenderObject<ROInfoLit, ROInfoGPULit>(flit_scene_tree, {0, transform}, {transform, transform},
+// shader, mesh, mat, transform, 10);
+// obj.loc.type = ForwardLit;
 
-    ROInfoLit* item = &flit_scene_tree[*obj.loc.shader_section]
-                           .mats[*obj.loc.mat_section]
-                           .meshes[*obj.loc.mesh_section]
-                           .cpu_info[*obj.loc.index];
+// ROInfoLit* item = &flit_scene_tree[*obj.loc.shader_section]
+// .mats[*obj.loc.mat_section]
+// .meshes[*obj.loc.mesh_section]
+// .cpu_info[*obj.loc.index];
 
-    // TODO: Make these actually do something
-    item->maxima_indexes =
-        addExtrema({Extrema::Maxima,
-                    Extrema::Object,
-                    item->bounding_box.max_pos,
-                    0,
-                    nullptr,
-                    {ForwardLit, obj.loc.shader_section, obj.loc.mat_section, obj.loc.mesh_section, obj.loc.index}});
-    item->minima_indexes =
-        addExtrema({Extrema::Minima,
-                    Extrema::Object,
-                    item->bounding_box.min_pos,
-                    0,
-                    nullptr,
-                    {ForwardLit, obj.loc.shader_section, obj.loc.mat_section, obj.loc.mesh_section, obj.loc.index}});
+// // TODO: Make these actually do something
+// item->maxima_indexes =
+// addExtrema({Extrema::Maxima,
+// Extrema::Object,
+// item->bounding_box.max_pos,
+// 0,
+// nullptr,
+// {ForwardLit, obj.loc.shader_section, obj.loc.mat_section, obj.loc.mesh_section, obj.loc.index}});
+// item->minima_indexes =
+// addExtrema({Extrema::Minima,
+// Extrema::Object,
+// item->bounding_box.min_pos,
+// 0,
+// nullptr,
+// {ForwardLit, obj.loc.shader_section, obj.loc.mat_section, obj.loc.mesh_section, obj.loc.index}});
 
-    return obj;
-}
+// return obj;
+// }
 
 template <typename ROCpu, typename ROGpu>
 Frender::RenderObjectRef Frender::Renderer::_addRenderObject(
@@ -777,9 +774,9 @@ void Frender::Renderer::destroyRenderObject(RenderObjectRef ro)
         _destroyRenderObject(funlit_scene_tree, ro);
         return;
 
-    case (ForwardLit):
-        _destroyRenderObject(flit_scene_tree, ro);
-        return;
+        // case (ForwardLit):
+        // _destroyRenderObject(flit_scene_tree, ro);
+        // return;
 
     default:
         break;
@@ -837,18 +834,18 @@ Frender::RenderObjectTraits Frender::Renderer::getRenderObjectTraits(RenderObjec
                     .cpu_info[*ro.loc.index]
                     .model};
     }
-    else if (ro.loc.type == ForwardLit)
-    {
+    // else if (ro.loc.type == ForwardLit)
+    // {
 
-        return {ro.loc.type, flit_scene_tree[*ro.loc.shader_section].shader,
-                flit_scene_tree[*ro.loc.shader_section].mats[*ro.loc.mat_section].mat.mat_ref,
-                flit_scene_tree[*ro.loc.shader_section].mats[*ro.loc.mat_section].meshes[*ro.loc.mesh_section].mesh,
-                flit_scene_tree[*ro.loc.shader_section]
-                    .mats[*ro.loc.mat_section]
-                    .meshes[*ro.loc.mesh_section]
-                    .cpu_info[*ro.loc.index]
-                    .model};
-    }
+    // return {ro.loc.type, flit_scene_tree[*ro.loc.shader_section].shader,
+    // flit_scene_tree[*ro.loc.shader_section].mats[*ro.loc.mat_section].mat.mat_ref,
+    // flit_scene_tree[*ro.loc.shader_section].mats[*ro.loc.mat_section].meshes[*ro.loc.mesh_section].mesh,
+    // flit_scene_tree[*ro.loc.shader_section]
+    // .mats[*ro.loc.mat_section]
+    // .meshes[*ro.loc.mesh_section]
+    // .cpu_info[*ro.loc.index]
+    // .model};
+    // }
     else
     {
         return {ro.loc.type, funlit_scene_tree[*ro.loc.shader_section].shader,
@@ -876,14 +873,14 @@ Frender::LightRef Frender::Renderer::createPointLight(glm::vec3 position, glm::v
 #endif
 
     // Add to Extrema list
-    point_lights[light_index].minima =
-        addExtrema({Extrema::Minima, Extrema::Light, position - glm::vec3(radius), light_id, nullptr, {}});
-    point_lights[light_index].maxima =
-        addExtrema({Extrema::Maxima, Extrema::Light, position + glm::vec3(radius), light_id, nullptr, {}});
+    // point_lights[light_index].minima =
+    // addExtrema({Extrema::Minima, Extrema::Light, position - glm::vec3(radius), light_id, nullptr, {}});
+    // point_lights[light_index].maxima =
+    // addExtrema({Extrema::Maxima, Extrema::Light, position + glm::vec3(radius), light_id, nullptr, {}});
 
-    // Add to light buffer
-    light_buffer.setArray("light_pos_dir_rad", light_index, glm::vec4(position.x, position.y, position.z, radius));
-    light_buffer.setArray("light_color_type", light_index, glm::vec4(color.x, color.y, color.z, 0));
+    // // Add to light buffer
+    // light_buffer.setArray("light_pos_dir_rad", light_index, glm::vec4(position.x, position.y, position.z, radius));
+    // light_buffer.setArray("light_color_type", light_index, glm::vec4(color.x, color.y, color.z, 0));
 
     light_index++;
     return Frender::LightRef(this, Point, new int32_t(point_lights.size() - 1));
@@ -895,12 +892,12 @@ Frender::LightRef Frender::Renderer::createDirectionalLight(glm::vec3 color, glm
     directional_lights.push_back({color, direction, light_id});
 
     // Add to Extrema list
-    addExtrema({Extrema::Minima, Extrema::Light, glm::vec3(-1000000), light_id, nullptr, {}});
-    addExtrema({Extrema::Maxima, Extrema::Light, glm::vec3(1000000), light_id, nullptr, {}});
+    // addExtrema({Extrema::Minima, Extrema::Light, glm::vec3(-1000000), light_id, nullptr, {}});
+    // addExtrema({Extrema::Maxima, Extrema::Light, glm::vec3(1000000), light_id, nullptr, {}});
 
     // Add to light buffer
-    light_buffer.setArray("light_pos_dir_rad", light_index, glm::vec4(direction.x, direction.y, direction.z, 0));
-    light_buffer.setArray("light_color_type", light_index, glm::vec4(color.x, color.y, color.z, 1));
+    // light_buffer.setArray("light_pos_dir_rad", light_index, glm::vec4(direction.x, direction.y, direction.z, 0));
+    // light_buffer.setArray("light_color_type", light_index, glm::vec4(color.x, color.y, color.z, 1));
 
     light_index++;
     return Frender::LightRef(this, Directional, new int32_t(directional_lights.size() - 1));
@@ -921,53 +918,53 @@ Frender::RenderObjectRef Frender::RenderObjectRef::duplicate()
     return renderer->duplicateRenderObject(*this);
 }
 
-glm::vec3* Frender::Renderer::addExtrema(Extrema e)
-{
-    glm::vec3 output;
+// glm::vec3* Frender::Renderer::addExtrema(Extrema e)
+// {
+// glm::vec3 output;
 
-    if (e.index == nullptr)
-    {
-        e.index = new glm::vec3();
-    }
+// if (e.index == nullptr)
+// {
+// e.index = new glm::vec3();
+// }
 
-    for (int i = 0; i < 3; i++)
-    {
-        // Add extrema in one axis
-        auto minima_it =
-            std::upper_bound(broad_phase[i].begin(), broad_phase[i].end(), e,
-                             [i](const Extrema& value, Extrema& info) { return value.position[i] < info.position[i]; });
+// for (int i = 0; i < 3; i++)
+// {
+// // Add extrema in one axis
+// auto minima_it =
+// std::upper_bound(broad_phase[i].begin(), broad_phase[i].end(), e,
+// [i](const Extrema& value, Extrema& info) { return value.position[i] < info.position[i]; });
 
-        auto mit = broad_phase[i].insert(minima_it, e);
-        output[i] = mit - broad_phase[i].begin();
-        (*e.index)[i] = output[i];
+// auto mit = broad_phase[i].insert(minima_it, e);
+// output[i] = mit - broad_phase[i].begin();
+// (*e.index)[i] = output[i];
 
-        // Update the rest of the indicies
-        for (int j = output[i] + 1; j < broad_phase[i].size(); j++)
-        {
-            (*broad_phase[i][j].index)[i] = j;
-        }
-    }
+// // Update the rest of the indicies
+// for (int j = output[i] + 1; j < broad_phase[i].size(); j++)
+// {
+// (*broad_phase[i][j].index)[i] = j;
+// }
+// }
 
-    return e.index;
-}
+// return e.index;
+// }
 
-void Frender::Renderer::removeExtrema(glm::vec3* ex_index)
-{
-    // Remove it
-    for (int i = 0; i < 3; i++)
-    {
-        broad_phase[i].erase(broad_phase[i].begin() + (*ex_index)[i]);
+// void Frender::Renderer::removeExtrema(glm::vec3* ex_index)
+// {
+// // Remove it
+// for (int i = 0; i < 3; i++)
+// {
+// broad_phase[i].erase(broad_phase[i].begin() + (*ex_index)[i]);
 
-        // Update the rest of the indices
-        for (int j = (*ex_index)[i]; j < broad_phase[i].size(); j++)
-        {
-            (*broad_phase[i][j].index)[i] = j;
-        }
-    }
+// // Update the rest of the indices
+// for (int j = (*ex_index)[i]; j < broad_phase[i].size(); j++)
+// {
+// (*broad_phase[i][j].index)[i] = j;
+// }
+// }
 
-    // Free the memory
-    delete ex_index;
-}
+// // Free the memory
+// delete ex_index;
+// }
 
 glm::vec3 Frender::Renderer::getLightPosition(LightRef light)
 {
@@ -987,8 +984,8 @@ void Frender::Renderer::setLightPosition(LightRef light, glm::vec3 position)
         return;
     }
 
-    removeExtrema(point_lights[*light.index].minima);
-    removeExtrema(point_lights[*light.index].maxima);
+    // removeExtrema(point_lights[*light.index].minima);
+    // removeExtrema(point_lights[*light.index].maxima);
 
     // Change the position
     point_lights[*light.index].position = position;
@@ -997,10 +994,10 @@ void Frender::Renderer::setLightPosition(LightRef light, glm::vec3 position)
     float radius = point_lights[*light.index].radius;
     auto light_id = point_lights[*light.index].light_id;
     auto m = glm::scale(glm::translate(glm::mat4(), position), glm::vec3(radius));
-    point_lights[*light.index].minima =
-        addExtrema({Extrema::Minima, Extrema::Light, position - glm::vec3(radius), light_id, nullptr, {}});
-    point_lights[*light.index].maxima =
-        addExtrema({Extrema::Maxima, Extrema::Light, position + glm::vec3(radius), light_id, nullptr, {}});
+    // point_lights[*light.index].minima =
+    // addExtrema({Extrema::Minima, Extrema::Light, position - glm::vec3(radius), light_id, nullptr, {}});
+    // point_lights[*light.index].maxima =
+    // addExtrema({Extrema::Maxima, Extrema::Light, position + glm::vec3(radius), light_id, nullptr, {}});
 
 #ifndef FLUX_NO_DEFERED
     point_light_buffer.set(*light.index, {point_lights[*light.index].color, position, radius, m});
@@ -1009,8 +1006,8 @@ void Frender::Renderer::setLightPosition(LightRef light, glm::vec3 position)
     glm::vec3 color = point_lights[*light.index].color;
 
     // Add to light buffer
-    light_buffer.setArray("light_pos_dir_rad", *light_id, glm::vec4(position.x, position.y, position.z, radius));
-    light_buffer.setArray("light_color_type", *light_id, glm::vec4(color.x, color.y, color.z, 0));
+    // light_buffer.setArray("light_pos_dir_rad", *light_id, glm::vec4(position.x, position.y, position.z, radius));
+    // light_buffer.setArray("light_color_type", *light_id, glm::vec4(color.x, color.y, color.z, 0));
 }
 
 void Frender::Renderer::destroyLight(LightRef light)
@@ -1018,8 +1015,8 @@ void Frender::Renderer::destroyLight(LightRef light)
     if (light.type == Point)
     {
         // Remove from sweep and prune
-        removeExtrema(point_lights[*light.index].minima);
-        removeExtrema(point_lights[*light.index].maxima);
+        // removeExtrema(point_lights[*light.index].minima);
+        // removeExtrema(point_lights[*light.index].maxima);
 
         // Remove from point_lights
         point_lights.erase(point_lights.begin() + *light.index);
@@ -1036,12 +1033,12 @@ void Frender::Renderer::destroyLight(LightRef light)
             *point_lights[i].light_id = i;
 
             // Update it in VRAM
-            light_buffer.setArray("light_pos_dir_rad", i,
-                                  glm::vec4(point_lights[i].position.x, point_lights[i].position.y,
-                                            point_lights[i].position.z, point_lights[i].radius));
-            light_buffer.setArray(
-                "light_color_type", i,
-                glm::vec4(point_lights[i].color.x, point_lights[i].color.y, point_lights[i].color.z, 0));
+            // light_buffer.setArray("light_pos_dir_rad", i,
+            // glm::vec4(point_lights[i].position.x, point_lights[i].position.y,
+            // point_lights[i].position.z, point_lights[i].radius));
+            // light_buffer.setArray(
+            // "light_color_type", i,
+            // glm::vec4(point_lights[i].color.x, point_lights[i].color.y, point_lights[i].color.z, 0));
         }
 
         // Set memory to -1 so that if it's accessed before it's reused it crashes there and then
@@ -1051,8 +1048,8 @@ void Frender::Renderer::destroyLight(LightRef light)
     else
     {
         // Remove from sweep and prune
-        removeExtrema(directional_lights[*light.index].minima);
-        removeExtrema(directional_lights[*light.index].maxima);
+        // removeExtrema(directional_lights[*light.index].minima);
+        // removeExtrema(directional_lights[*light.index].maxima);
 
         // Remove from directional_lights
         directional_lights.erase(directional_lights.begin() + *light.index);
@@ -1064,12 +1061,12 @@ void Frender::Renderer::destroyLight(LightRef light)
             *directional_lights[i].light_id = i;
 
             // Update it in VRAM
-            light_buffer.setArray("light_pos_dir_rad", i,
-                                  glm::vec4(directional_lights[i].direction.x, directional_lights[i].direction.y,
-                                            directional_lights[i].direction.z, 0));
-            light_buffer.setArray("light_color_type", i,
-                                  glm::vec4(directional_lights[i].color.x, directional_lights[i].color.y,
-                                            directional_lights[i].color.z, 1));
+            // light_buffer.setArray("light_pos_dir_rad", i,
+            // glm::vec4(directional_lights[i].direction.x, directional_lights[i].direction.y,
+            // directional_lights[i].direction.z, 0));
+            // light_buffer.setArray("light_color_type", i,
+            // glm::vec4(directional_lights[i].color.x, directional_lights[i].color.y,
+            // directional_lights[i].color.z, 1));
         }
 
         // Set memory to -1 so that if it's accessed before it's reused it crashes there and then
@@ -1097,7 +1094,7 @@ void Frender::Renderer::setLightDirection(LightRef light, glm::vec3 direction)
     }
 
     directional_lights[*light.index].direction = direction;
-    light_buffer.setArray("light_pos_dir_rad", *light.index, glm::vec4(direction.x, direction.y, direction.z, 0));
+    // light_buffer.setArray("light_pos_dir_rad", *light.index, glm::vec4(direction.x, direction.y, direction.z, 0));
 }
 
 void Frender::Renderer::setSkybox(int width, int height, float* data)

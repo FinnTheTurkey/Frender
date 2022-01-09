@@ -70,7 +70,7 @@ embed_shader("IntegrateBRDF.frag" "IntegrateBRDFFrag.h" "IntegrateBRDFFragSrc")
 embed_shader("skybox.frag" "SkyboxFrag.h" "SkyboxFragSrc")
 embed_shader("skybox.vert" "SkyboxVert.h" "SkyboxVertSrc")
 # Disable the defered render
-add_compile_definitions(FRENDER_NO_DEFERED)
+# add_compile_definitions(FRENDER_NO_DEFERED)
 
 add_library(Frender 
     Src/Window.cc

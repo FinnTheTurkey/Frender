@@ -173,9 +173,9 @@ void Frender::Renderer::bulkRender()
 
     // Lit forward objects
     // Calculate light intersections
-    calculateLighting(vp);
+    // calculateLighting(vp);
     GLERRORCHECK();
-    litRender(vp);
+    // litRender(vp);
     GLERRORCHECK();
 
     // Render skybox
@@ -340,228 +340,228 @@ void Frender::Renderer::unlitRender(glm::mat4 vp)
     }
 }
 
-void Frender::Renderer::litRender(glm::mat4 vp)
-{
-    for (auto shdr : flit_scene_tree)
-    {
-        shdr.shader.enable();
-        light_buffer.enable(1);
-        // TODO: Make shader independant
-        shdr.shader.setUniform(lit_uniforms.cam_pos, camera * glm::vec4(0, 0, 0, 1));
-        GLERRORCHECK();
-        for (auto mat : shdr.mats)
-        {
-            mat.mat.uniforms.enable(0);
-            GLERRORCHECK();
+// void Frender::Renderer::litRender(glm::mat4 vp)
+// {
+// for (auto shdr : flit_scene_tree)
+// {
+// shdr.shader.enable();
+// light_buffer.enable(1);
+// // TODO: Make shader independant
+// shdr.shader.setUniform(lit_uniforms.cam_pos, camera * glm::vec4(0, 0, 0, 1));
+// GLERRORCHECK();
+// for (auto mat : shdr.mats)
+// {
+// mat.mat.uniforms.enable(0);
+// GLERRORCHECK();
 
-            getMaterial(mat.mat.mat_ref)->textures.set(0, irradiance_cubemap);
-            getMaterial(mat.mat.mat_ref)->textures.set(1, prefilter_cubemap);
-            getMaterial(mat.mat.mat_ref)->textures.enable();
+// getMaterial(mat.mat.mat_ref)->textures.set(0, irradiance_cubemap);
+// getMaterial(mat.mat.mat_ref)->textures.set(1, prefilter_cubemap);
+// getMaterial(mat.mat.mat_ref)->textures.enable();
 
-            GLERRORCHECK();
+// GLERRORCHECK();
 
-            for (auto mesh : mat.meshes)
-            {
-                // Update transforms
-                int to_draw = 0;
-                int max = mesh.gpu_buffer->size() - 1;
-                for (auto ro : mesh.cpu_info)
-                {
-                    // Frustum culling
-                    // ro.bounding_box.transformBoundingBox(ro.model);
+// for (auto mesh : mat.meshes)
+// {
+// // Update transforms
+// int to_draw = 0;
+// int max = mesh.gpu_buffer->size() - 1;
+// for (auto ro : mesh.cpu_info)
+// {
+// // Frustum culling
+// // ro.bounding_box.transformBoundingBox(ro.model);
 
-                    // TODO: Fix frustum culling
-                    // if (!frustumCull(ro.bounding_box.min_pos, ro.bounding_box.max_pos))
-                    // if (false)
-                    // {
-                    //     // No point is in the view frustum, so we can safely cull
-                    //     // Add to the end of the buffer
-                    //     // auto gput = mesh.gpu_buffer->get(max);
-                    //     // gput.model = ro.model;
-                    //     mesh.gpu_buffer->set(max, {glm::mat4(), ro.model});
-                    //     max --;
-                    // }
-                    // else
-                    // {
-                    // We do have to draw it
-                    auto mvp = vp * ro.model;
+// // TODO: Fix frustum culling
+// // if (!frustumCull(ro.bounding_box.min_pos, ro.bounding_box.max_pos))
+// // if (false)
+// // {
+// //     // No point is in the view frustum, so we can safely cull
+// //     // Add to the end of the buffer
+// //     // auto gput = mesh.gpu_buffer->get(max);
+// //     // gput.model = ro.model;
+// //     mesh.gpu_buffer->set(max, {glm::mat4(), ro.model});
+// //     max --;
+// // }
+// // else
+// // {
+// // We do have to draw it
+// auto mvp = vp * ro.model;
 
-                    // We have to keep the light calculations intact
-                    auto gput = mesh.gpu_buffer->get(to_draw);
-                    gput.model = ro.model;
-                    gput.mvp = mvp;
-                    mesh.gpu_buffer->set(to_draw, gput);
-                    GLERRORCHECK();
-                    to_draw++;
-                    // }
-                }
+// // We have to keep the light calculations intact
+// auto gput = mesh.gpu_buffer->get(to_draw);
+// gput.model = ro.model;
+// gput.mvp = mvp;
+// mesh.gpu_buffer->set(to_draw, gput);
+// GLERRORCHECK();
+// to_draw++;
+// // }
+// }
 
-                if (to_draw > 0)
-                {
-                    // Upload to GPU
-                    mesh.gpu_buffer->apply();
-                    GLERRORCHECK();
+// if (to_draw > 0)
+// {
+// // Upload to GPU
+// mesh.gpu_buffer->apply();
+// GLERRORCHECK();
 
-                    // Render
-                    mesh.vao->enable();
-                    GLERRORCHECK();
-                    mesh.vao->draw(to_draw); // Only render elements added to the front
-                    GLERRORCHECK();
-                }
-            }
-        }
-    }
-}
+// // Render
+// mesh.vao->enable();
+// GLERRORCHECK();
+// mesh.vao->draw(to_draw); // Only render elements added to the front
+// GLERRORCHECK();
+// }
+// }
+// }
+// }
+// }
 
-void Frender::Renderer::calculateLighting(glm::mat4 vp)
-{
-    // TODO: Deal with shiz moving
-    std::vector<int> active_lights;
-    bool first = true;
-    int axis = 0;
-    for (auto i : broad_phase)
-    {
-        for (auto e : i)
-        {
-            if (e.obj == Extrema::Light)
-            {
-                if (e.et == Extrema::Minima)
-                {
-                    active_lights.push_back(*e.light);
-                }
-                else
-                {
-                    active_lights.erase(std::find(active_lights.begin(), active_lights.end(), *e.light));
-                }
-            }
-            else
-            {
-                ROInfoLit* item = &flit_scene_tree[*e.loc.shader_section]
-                                       .mats[*e.loc.mat_section]
-                                       .meshes[*e.loc.mesh_section]
-                                       .cpu_info[*e.loc.index];
+// void Frender::Renderer::calculateLighting(glm::mat4 vp)
+// {
+// // TODO: Deal with shiz moving
+// std::vector<int> active_lights;
+// bool first = true;
+// int axis = 0;
+// for (auto i : broad_phase)
+// {
+// for (auto e : i)
+// {
+// if (e.obj == Extrema::Light)
+// {
+// if (e.et == Extrema::Minima)
+// {
+// active_lights.push_back(*e.light);
+// }
+// else
+// {
+// active_lights.erase(std::find(active_lights.begin(), active_lights.end(), *e.light));
+// }
+// }
+// else
+// {
+// ROInfoLit* item = &flit_scene_tree[*e.loc.shader_section]
+// .mats[*e.loc.mat_section]
+// .meshes[*e.loc.mesh_section]
+// .cpu_info[*e.loc.index];
 
-                // Add all the lights colliding on the X axis
-                if (first)
-                {
-                    if (e.et == Extrema::Minima)
-                    {
-                        for (int n = 0; n < 8; n++)
-                        {
-                            if (n < active_lights.size())
-                            {
-                                item->complete_lights[n] = active_lights[n];
-                            }
-                            else
-                            {
-                                item->complete_lights[n] = -1;
-                            }
-                        }
-                    }
-                    else
-                    {
-                        // Make sure we don't add anything twice
-                        for (auto n : active_lights)
-                        {
-                            if (std::find(item->complete_lights.begin(), item->complete_lights.end(), n) ==
-                                item->complete_lights.end())
-                            {
-                                for (int nn = 0; nn < 8; nn++)
-                                {
-                                    if (item->complete_lights[nn] == -1)
-                                    {
-                                        item->complete_lights[nn] = n;
-                                        break;
-                                    }
-                                }
-                            }
-                        }
+// // Add all the lights colliding on the X axis
+// if (first)
+// {
+// if (e.et == Extrema::Minima)
+// {
+// for (int n = 0; n < 8; n++)
+// {
+// if (n < active_lights.size())
+// {
+// item->complete_lights[n] = active_lights[n];
+// }
+// else
+// {
+// item->complete_lights[n] = -1;
+// }
+// }
+// }
+// else
+// {
+// // Make sure we don't add anything twice
+// for (auto n : active_lights)
+// {
+// if (std::find(item->complete_lights.begin(), item->complete_lights.end(), n) ==
+// item->complete_lights.end())
+// {
+// for (int nn = 0; nn < 8; nn++)
+// {
+// if (item->complete_lights[nn] == -1)
+// {
+// item->complete_lights[nn] = n;
+// break;
+// }
+// }
+// }
+// }
 
-                        item->lights = item->complete_lights;
-                    }
-                }
-                else
-                {
-                    // Lights have to be overlapping on _all_ axis to be overlaping,
-                    // So from now on we only remove
+// item->lights = item->complete_lights;
+// }
+// }
+// else
+// {
+// // Lights have to be overlapping on _all_ axis to be overlaping,
+// // So from now on we only remove
 
-                    if (e.et == Extrema::Minima)
-                    {
-                        for (auto& n : item->lights)
-                        {
-                            if (std::find(active_lights.begin(), active_lights.end(), n) == active_lights.end())
-                            {
-                                // Remove it from lights
-                                n = -1; // This may not work
-                            }
-                        }
-                    }
-                    else
-                    {
-                        for (auto& n : item->lights)
-                        {
-                            if (std::find(active_lights.begin(), active_lights.end(), n) == active_lights.end())
-                            {
-                                // Remove it from lights
-                                n = -1; // This may not work
-                            }
-                        }
+// if (e.et == Extrema::Minima)
+// {
+// for (auto& n : item->lights)
+// {
+// if (std::find(active_lights.begin(), active_lights.end(), n) == active_lights.end())
+// {
+// // Remove it from lights
+// n = -1; // This may not work
+// }
+// }
+// }
+// else
+// {
+// for (auto& n : item->lights)
+// {
+// if (std::find(active_lights.begin(), active_lights.end(), n) == active_lights.end())
+// {
+// // Remove it from lights
+// n = -1; // This may not work
+// }
+// }
 
-                        // Find lights that were accidentally removed in the Minima
-                        for (auto nn : active_lights)
-                        {
-                            // If it's active, not in lights but _is_ in complete_lights, then it needs to be put back
-                            if (std::find(item->lights.begin(), item->lights.end(), nn) == item->lights.end() &&
-                                std::find(item->complete_lights.begin(), item->complete_lights.end(), nn) !=
-                                    item->complete_lights.end())
-                            {
-                                // Re-add it
-                                for (int n = 0; n < 8; n++)
-                                {
-                                    if (item->complete_lights[n] == -1)
-                                    {
-                                        item->complete_lights[n] = n;
-                                        break;
-                                    }
-                                }
-                            }
-                        }
+// // Find lights that were accidentally removed in the Minima
+// for (auto nn : active_lights)
+// {
+// // If it's active, not in lights but _is_ in complete_lights, then it needs to be put back
+// if (std::find(item->lights.begin(), item->lights.end(), nn) == item->lights.end() &&
+// std::find(item->complete_lights.begin(), item->complete_lights.end(), nn) !=
+// item->complete_lights.end())
+// {
+// // Re-add it
+// for (int n = 0; n < 8; n++)
+// {
+// if (item->complete_lights[n] == -1)
+// {
+// item->complete_lights[n] = n;
+// break;
+// }
+// }
+// }
+// }
 
-                        item->complete_lights = item->lights;
+// item->complete_lights = item->lights;
 
-                        if (axis == 2)
-                        {
-                            // All light collisions are calculated
-                            // So we can put it in GPUInfo
+// if (axis == 2)
+// {
+// // All light collisions are calculated
+// // So we can put it in GPUInfo
 
-                            Frender::ROInfoGPULit gpu_item = flit_scene_tree[*e.loc.shader_section]
-                                                                 .mats[*e.loc.mat_section]
-                                                                 .meshes[*e.loc.mesh_section]
-                                                                 .gpu_buffer->get(*e.loc.index);
-                            gpu_item.lights1[0] = item->complete_lights[0];
-                            gpu_item.lights1[1] = item->complete_lights[1];
-                            gpu_item.lights1[2] = item->complete_lights[2];
-                            gpu_item.lights1[3] = item->complete_lights[3];
+// Frender::ROInfoGPULit gpu_item = flit_scene_tree[*e.loc.shader_section]
+// .mats[*e.loc.mat_section]
+// .meshes[*e.loc.mesh_section]
+// .gpu_buffer->get(*e.loc.index);
+// gpu_item.lights1[0] = item->complete_lights[0];
+// gpu_item.lights1[1] = item->complete_lights[1];
+// gpu_item.lights1[2] = item->complete_lights[2];
+// gpu_item.lights1[3] = item->complete_lights[3];
 
-                            gpu_item.lights2[0] = item->complete_lights[4];
-                            gpu_item.lights2[1] = item->complete_lights[5];
-                            gpu_item.lights2[2] = item->complete_lights[6];
-                            gpu_item.lights2[3] = item->complete_lights[7];
+// gpu_item.lights2[0] = item->complete_lights[4];
+// gpu_item.lights2[1] = item->complete_lights[5];
+// gpu_item.lights2[2] = item->complete_lights[6];
+// gpu_item.lights2[3] = item->complete_lights[7];
 
-                            flit_scene_tree[*e.loc.shader_section]
-                                .mats[*e.loc.mat_section]
-                                .meshes[*e.loc.mesh_section]
-                                .gpu_buffer->set(*e.loc.index, gpu_item);
-                        }
-                    }
-                }
-            }
-        }
+// flit_scene_tree[*e.loc.shader_section]
+// .mats[*e.loc.mat_section]
+// .meshes[*e.loc.mesh_section]
+// .gpu_buffer->set(*e.loc.index, gpu_item);
+// }
+// }
+// }
+// }
+// }
 
-        first = false;
-        axis++;
-    }
-}
+// first = false;
+// axis++;
+// }
+// }
 
 bool Frender::Renderer::frustumCull(glm::vec3 min, glm::vec3 max)
 {

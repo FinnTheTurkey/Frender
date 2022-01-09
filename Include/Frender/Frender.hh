@@ -139,7 +139,7 @@ enum RenderObjectTypes
 {
     Lit,
     Unlit,
-    ForwardLit,
+    // ForwardLit,
     Transparent
 };
 
@@ -410,14 +410,6 @@ class Renderer
     uint32_t createUnlitMaterial(float emmisive = 0);
 
     /**
-    Creates an empty material for Forward rendered lit objects
-    */
-    uint32_t createLitMaterial()
-    {
-        return createMaterial(lit_shader);
-    }
-
-    /**
     Gets the material as a pointer
     NOTE: This pointer is not guarenteed to always point
     at the material, and therefore shouldn't be stored anywhere
@@ -439,15 +431,6 @@ class Renderer
     This thing will appear when the scene is rendered
     */
     RenderObjectRef createRenderObject(MeshRef mesh, uint32_t mat, glm::mat4 transform);
-
-    /**
-    Creates a forward rendered lit render object
-    */
-    RenderObjectRef createLitRenderObject(GLTools::Shader shader, MeshRef mesh, uint32_t mat, glm::mat4 transform);
-    RenderObjectRef createLitRenderObject(MeshRef mesh, uint32_t mat, glm::mat4 transform)
-    {
-        return createLitRenderObject(lit_shader, mesh, mat, transform);
-    };
 
     /**
     Deletes a RenderObject
@@ -553,12 +536,12 @@ class Renderer
                         .meshes[*loc.mesh_section]
                         .cpu_info[*loc.index];
         }
-        case (ForwardLit): {
-            return &flit_scene_tree[*loc.shader_section]
-                        .mats[*loc.mat_section]
-                        .meshes[*loc.mesh_section]
-                        .cpu_info[*loc.index];
-        }
+        // case (ForwardLit): {
+        // return &flit_scene_tree[*loc.shader_section]
+        // .mats[*loc.mat_section]
+        // .meshes[*loc.mesh_section]
+        // .cpu_info[*loc.index];
+        // }
         default:
             break;
         }
@@ -579,8 +562,8 @@ class Renderer
     _LightUniforms alight_uniforms;
     GLTools::TextureManager alight_tx;
 
-    GLTools::Shader lit_shader;
-    _LightUniforms lit_uniforms;
+    // GLTools::Shader lit_shader;
+    // _LightUniforms lit_uniforms;
 
     // Forward rendered shaders
     GLTools::Shader unlit;
@@ -649,18 +632,18 @@ class Renderer
     std::vector<ShaderSection<MatSection<MeshSection<ROInfo, ROInfoGPU>>>> funlit_scene_tree;
 
     // Broad phase sweep and prune for forward lit objects
-    std::array<std::vector<Extrema>, 3> broad_phase;
+    // std::array<std::vector<Extrema>, 3> broad_phase;
 
     // Scene tree for forward lit
-    std::vector<ShaderSection<MatSection<MeshSection<ROInfoLit, ROInfoGPULit>>>> flit_scene_tree;
+    // std::vector<ShaderSection<MatSection<MeshSection<ROInfoLit, ROInfoGPULit>>>> flit_scene_tree;
 
-    glm::vec3* addExtrema(Extrema ex);
-    void removeExtrema(glm::vec3* ex_index);
+    // glm::vec3* addExtrema(Extrema ex);
+    // void removeExtrema(glm::vec3* ex_index);
 
     // Pools of lights
     std::vector<PointLight> point_lights;
     std::vector<DirectionLight> directional_lights;
-    GLTools::UniformBuffer light_buffer;
+    // GLTools::UniformBuffer light_buffer;
     int light_index;
 
     // Skybox and ibl state
@@ -697,8 +680,8 @@ class Renderer
     void bulkRender();
     void geometryPass(glm::mat4 vp);
     void unlitRender(glm::mat4 vp);
-    void litRender(glm::mat4 vp);
-    void calculateLighting(glm::mat4 vp);
+    // void litRender(glm::mat4 vp);
+    // void calculateLighting(glm::mat4 vp);
     bool frustumCull(glm::vec3 min, glm::vec3 max);
     void processBloom();
 
