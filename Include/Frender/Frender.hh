@@ -10,6 +10,7 @@
 #include <vector>
 
 #include "Frender/GLTools.hh"
+#include "LookupTable.hh"
 
 class GLFWwindow;
 
@@ -161,30 +162,28 @@ struct RenderObjectTraits
     glm::mat4 transform;
 };
 
-struct RenderObjectLocator
-{
-    RenderObjectLocator()
-    {
-    }
-    RenderObjectLocator(RenderObjectTypes type, int* shader_section, int* mat_section, int* mesh_section, int* index)
-        : type(type), shader_section(shader_section), mat_section(mat_section), mesh_section(mesh_section), index(index)
-    {
-    }
+// struct RenderObjectLocator
+// {
+// RenderObjectLocator()
+// {
+// }
+// RenderObjectLocator(RenderObjectTypes type, int* shader_section, int* mat_section, int* mesh_section, int* index)
+// : type(type), shader_section(shader_section), mat_section(mat_section), mesh_section(mesh_section), index(index)
+// {
+// }
 
-    RenderObjectTypes type;
-    int* shader_section = nullptr;
-    int* mat_section = nullptr;
-    int* mesh_section = nullptr;
-    int* index = nullptr;
-};
+// RenderObjectTypes type;
+// int* shader_section = nullptr;
+// int* mat_section = nullptr;
+// int* mesh_section = nullptr;
+// int* index = nullptr;
+// };
 
 class RenderObjectRef
 {
   public:
     RenderObjectRef() : renderer(nullptr){};
-    RenderObjectRef(RenderObjectTypes type, int* shader_section, int* mat_section, int* mesh_section, int* index,
-                    Renderer* renderer)
-        : loc(type, shader_section, mat_section, mesh_section, index), renderer(renderer)
+    RenderObjectRef(RenderObjectTypes type, Renderer* renderer, LookupId id) : type(type), id(id), renderer(renderer)
     {
     }
 
@@ -193,8 +192,9 @@ class RenderObjectRef
 
     RenderObjectRef duplicate();
 
-    RenderObjectLocator loc;
     Renderer* renderer = nullptr;
+    RenderObjectTypes type;
+    LookupId id;
 
   private:
 };
@@ -221,8 +221,8 @@ struct PointLight
     float radius;
     glm::mat4 transform;
     int32_t* light_id;
-    glm::vec3* minima;
-    glm::vec3* maxima;
+    // glm::vec3* minima;
+    // glm::vec3* maxima;
 };
 
 struct DirectionLight
@@ -230,8 +230,8 @@ struct DirectionLight
     glm::vec3 color;
     glm::vec3 direction;
     int32_t* light_id;
-    glm::vec3* minima;
-    glm::vec3* maxima;
+    // glm::vec3* minima;
+    // glm::vec3* maxima;
 };
 
 struct _LightUniforms
@@ -311,7 +311,8 @@ struct BoundingBox
 
 struct ROInfo
 {
-    int* index;
+    int index;
+    uint32_t lookup_index;
     glm::mat4 model;
     BoundingBox bounding_box;
 };
@@ -322,21 +323,21 @@ struct ROInfoGPU
     glm::mat4 model;
 };
 
-struct ROInfoLit : public ROInfo
-{
-    std::array<int32_t, 8> lights;
-    std::array<int32_t, 8> complete_lights;
-    glm::vec3* minima_indexes;
-    glm::vec3* maxima_indexes;
-};
+// struct ROInfoLit : public ROInfo
+// {
+// std::array<int32_t, 8> lights;
+// std::array<int32_t, 8> complete_lights;
+// // glm::vec3* minima_indexes;
+// // glm::vec3* maxima_indexes;
+// };
 
-struct ROInfoGPULit
-{
-    glm::mat4 mvp;
-    glm::mat4 model;
-    glm::vec4 lights1;
-    glm::vec4 lights2;
-};
+// struct ROInfoGPULit
+// {
+// glm::mat4 mvp;
+// glm::mat4 model;
+// glm::vec4 lights1;
+// glm::vec4 lights2;
+// };
 
 template <typename CpuT, typename GpuT> struct MeshSection
 {
@@ -345,7 +346,7 @@ template <typename CpuT, typename GpuT> struct MeshSection
 
     std::vector<CpuT> cpu_info;
     GLTools::Buffer<GpuT>* gpu_buffer; // Buffer must be ptr because vector can re-allocate
-    int* index;
+    int index;
     // std::vector<int*> indicies;
 };
 
@@ -353,38 +354,14 @@ template <typename MeshT> struct MatSection
 {
     MaterialRef mat;
     std::vector<MeshT> meshes;
-    int* index;
+    int index;
 };
 
 template <typename MatT> struct ShaderSection
 {
     GLTools::Shader shader;
     std::vector<MatT> mats;
-    int* index;
-};
-
-struct Extrema
-{
-    enum ExtremaType
-    {
-        Minima,
-        Maxima
-    };
-    enum ObjectType
-    {
-        Light,
-        Object
-    };
-
-    ExtremaType et;
-    ObjectType obj;
-
-    glm::vec3 position;
-
-    int32_t* light;
-    glm::vec3* index;
-
-    RenderObjectLocator loc;
+    int index;
 };
 
 class Renderer
@@ -520,33 +497,24 @@ class Renderer
     double frame_rate;
     double frame_time;
 
-    ROInfo* _getRenderObject(RenderObjectLocator loc)
+    ROInfo& _getRenderObject(LookupId id, RenderObjectTypes type)
     {
-        switch (loc.type)
+        RenderIndex loc = render_object_lookup.at(id);
+        switch (type)
         {
         case (Lit): {
-            return &scene_tree[*loc.shader_section]
-                        .mats[*loc.mat_section]
-                        .meshes[*loc.mesh_section]
-                        .cpu_info[*loc.index];
+            return scene_tree[loc.shader_section].mats[loc.mat_section].meshes[loc.mesh_section].cpu_info[loc.index];
         }
         case (Unlit): {
-            return &funlit_scene_tree[*loc.shader_section]
-                        .mats[*loc.mat_section]
-                        .meshes[*loc.mesh_section]
-                        .cpu_info[*loc.index];
+            return funlit_scene_tree[loc.shader_section]
+                .mats[loc.mat_section]
+                .meshes[loc.mesh_section]
+                .cpu_info[loc.index];
         }
-        // case (ForwardLit): {
-        // return &flit_scene_tree[*loc.shader_section]
-        // .mats[*loc.mat_section]
-        // .meshes[*loc.mesh_section]
-        // .cpu_info[*loc.index];
-        // }
         default:
             break;
         }
-        std::cout << "Trying to get inexistant render object\n";
-        return nullptr;
+        throw "Trying to get inexistant RenderObject";
     }
 
   private:
@@ -611,6 +579,8 @@ class Renderer
     std::vector<std::pair<uint32_t, GLTools::Buffer<uint32_t>*>> indices;
     std::vector<BoundingBox> bounding_boxes;
     std::vector<Texture> textures;
+
+    LookupTable render_object_lookup;
 
     // Scene tree for the bulk renderer
     /*

@@ -77,10 +77,12 @@ add_library(Frender
     Src/Renderer.cc
     Src/GLTools.cc
     Src/BulkRenderer.cc
+    Src/LookupTable.cc
 
     Src/FrenderTools/FrenderTools.cc
     )
 target_include_directories(Frender PUBLIC Include)
+target_include_directories(Frender PUBLIC Src)
 
 # GLFW
 set(GLFW_BUILD_DOCS OFF CACHE BOOL "" FORCE)

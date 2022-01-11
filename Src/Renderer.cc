@@ -5,6 +5,7 @@
 #include <iostream>
 
 #include "Frender/GLTools.hh"
+#include "LookupTable.hh"
 #include "glm/detail/type_vec.hpp"
 #include "glm/glm.hpp"
 #include <glm/gtc/matrix_transform.hpp>
@@ -517,9 +518,9 @@ Frender::RenderObjectRef Frender::Renderer::createRenderObject(MeshRef mesh, uin
         return createUnlitRenderObject(getMaterial(mat)->shader, mesh, mat, transform);
     }
 
-    auto obj = _addRenderObject<ROInfo, ROInfoGPU>(scene_tree, {0, transform}, {transform, transform},
+    auto obj = _addRenderObject<ROInfo, ROInfoGPU>(scene_tree, {-1, 0, transform}, {transform, transform},
                                                    stage1_bulk_shader, mesh, mat, transform);
-    obj.loc.type = Lit;
+    obj.type = Lit;
     return obj;
 }
 
@@ -527,48 +528,11 @@ Frender::RenderObjectRef Frender::Renderer::createUnlitRenderObject(GLTools::Sha
                                                                     glm::mat4 transform)
 {
 
-    auto obj = _addRenderObject<ROInfo, ROInfoGPU>(funlit_scene_tree, {0, transform}, {transform, transform}, shader,
-                                                   mesh, mat, transform);
-    obj.loc.type = Unlit;
+    auto obj = _addRenderObject<ROInfo, ROInfoGPU>(funlit_scene_tree, {-1, 0, transform}, {transform, transform},
+                                                   shader, mesh, mat, transform);
+    obj.type = Unlit;
     return obj;
 }
-
-// Frender::RenderObjectRef Frender::Renderer::createLitRenderObject(GLTools::Shader shader, MeshRef mesh, uint32_t mat,
-// glm::mat4 transform)
-// {
-// if (getMaterial(mat)->type == Bulk)
-// {
-// std::cerr << "Lit render objects require Detail materials\n";
-// return {};
-// }
-
-// auto obj = _addRenderObject<ROInfoLit, ROInfoGPULit>(flit_scene_tree, {0, transform}, {transform, transform},
-// shader, mesh, mat, transform, 10);
-// obj.loc.type = ForwardLit;
-
-// ROInfoLit* item = &flit_scene_tree[*obj.loc.shader_section]
-// .mats[*obj.loc.mat_section]
-// .meshes[*obj.loc.mesh_section]
-// .cpu_info[*obj.loc.index];
-
-// // TODO: Make these actually do something
-// item->maxima_indexes =
-// addExtrema({Extrema::Maxima,
-// Extrema::Object,
-// item->bounding_box.max_pos,
-// 0,
-// nullptr,
-// {ForwardLit, obj.loc.shader_section, obj.loc.mat_section, obj.loc.mesh_section, obj.loc.index}});
-// item->minima_indexes =
-// addExtrema({Extrema::Minima,
-// Extrema::Object,
-// item->bounding_box.min_pos,
-// 0,
-// nullptr,
-// {ForwardLit, obj.loc.shader_section, obj.loc.mat_section, obj.loc.mesh_section, obj.loc.index}});
-
-// return obj;
-// }
 
 template <typename ROCpu, typename ROGpu>
 Frender::RenderObjectRef Frender::Renderer::_addRenderObject(
@@ -576,7 +540,7 @@ Frender::RenderObjectRef Frender::Renderer::_addRenderObject(
     GLTools::Shader shader, MeshRef mesh, uint32_t mat, glm::mat4 transform, int rows)
 {
     // Find the correct shader section, and create if it doesn't exist
-    int* shader_section_index = nullptr;
+    int shader_section_index = -1;
     int c = 0;
     for (auto i : scene)
     {
@@ -587,9 +551,9 @@ Frender::RenderObjectRef Frender::Renderer::_addRenderObject(
         c++;
     }
 
-    if (shader_section_index == nullptr)
+    if (shader_section_index == -1)
     {
-        int* id = new int(scene.size());
+        int id = scene.size();
         scene.push_back({shader, {}, id});
         shader_section_index = id;
     }
@@ -597,9 +561,9 @@ Frender::RenderObjectRef Frender::Renderer::_addRenderObject(
     auto m = getMaterial(mat);
 
     // Find the correct section, or create if it doesn't exist
-    int* mat_section_index = nullptr;
+    int mat_section_index = -1;
     c = 0;
-    for (auto i : scene[*shader_section_index].mats)
+    for (auto i : scene[shader_section_index].mats)
     {
         if (i.mat.mat_ref == mat)
         {
@@ -608,21 +572,21 @@ Frender::RenderObjectRef Frender::Renderer::_addRenderObject(
         c++;
     }
 
-    if (mat_section_index == nullptr)
+    if (mat_section_index == -1)
     {
         // Add a new mat section
-        int* id = new int(scene.at(*shader_section_index).mats.size());
-        scene.at(*shader_section_index)
+        int id = scene.at(shader_section_index).mats.size();
+        scene.at(shader_section_index)
             .mats.push_back(MatSection<MeshSection<ROCpu, ROGpu>>{{mat, m->uniforms.getRef(), m->shader}, {}, id});
         mat_section_index = id;
     }
 
-    MatSection<MeshSection<ROCpu, ROGpu>>* ms = &scene.at(*shader_section_index).mats[*mat_section_index];
+    MatSection<MeshSection<ROCpu, ROGpu>>& ms = scene.at(shader_section_index).mats[mat_section_index];
 
     // Find Mesh Section
-    int* mesh_section_index = nullptr;
+    int mesh_section_index = -1;
     c = 0;
-    for (auto i : ms->meshes)
+    for (auto i : ms.meshes)
     {
         if (i.mesh == mesh)
         {
@@ -631,7 +595,7 @@ Frender::RenderObjectRef Frender::Renderer::_addRenderObject(
         c++;
     }
 
-    if (mesh_section_index == nullptr)
+    if (mesh_section_index == -1)
     {
         // Add a new mesh section
         // We have to create some OpenGL Objects for this one
@@ -644,37 +608,44 @@ Frender::RenderObjectRef Frender::Renderer::_addRenderObject(
             sizes.push_back({sizeof(glm::vec4), 4});
         }
 
+        // TODO: Maybe make this unique_ptr?
         GLTools::Buffer<ROGpu>* gpu_buffer = new GLTools::Buffer<ROGpu>(GLTools::Dynamic, sizes, {});
 
-        int* id = new int(ms->meshes.size());
+        int id = ms.meshes.size();
         auto v = new GLTools::VertexArray();
-        ms->meshes.push_back(MeshSection<ROCpu, ROGpu>{mesh, v, {}, gpu_buffer, id});
-        int index = ms->meshes.size() - 1;
+        ms.meshes.push_back(MeshSection<ROCpu, ROGpu>{mesh, v, {}, gpu_buffer, id});
+        int index = ms.meshes.size() - 1;
 
         GLERRORCHECK();
-        ms->meshes[index].vao->addBuffer(meshes[mesh]);
+        ms.meshes[index].vao->addBuffer(meshes[mesh]);
         GLERRORCHECK();
-        ms->meshes[index].vao->addBuffer(gpu_buffer);
+        ms.meshes[index].vao->addBuffer(gpu_buffer);
         GLERRORCHECK();
-        ms->meshes[index].vao->addIndices(indices[mesh].second, indices[mesh].first);
+        ms.meshes[index].vao->addIndices(indices[mesh].second, indices[mesh].first);
         GLERRORCHECK();
-        ms->meshes[index].vao->bind();
+        ms.meshes[index].vao->bind();
         GLERRORCHECK();
 
         mesh_section_index = id;
     }
 
-    MeshSection<ROCpu, ROGpu>* mes = &ms->meshes[*mesh_section_index];
+    MeshSection<ROCpu, ROGpu>& mes = ms.meshes[mesh_section_index];
+
+    // Add to lookup table
+    Frender::LookupId lid =
+        render_object_lookup.push(RenderIndex{shader_section_index, mat_section_index, mesh_section_index});
 
     // Add actual data to CPU and GPU
-    int* id = new int(mes->cpu_info.size());
+    int id = mes.cpu_info.size();
     cpu.index = id;
-    cpu.bounding_box = bounding_boxes[mes->mesh];
+    cpu.lookup_index = lid;
+    cpu.bounding_box = bounding_boxes[mes.mesh];
     cpu.bounding_box.transformBoundingBox(transform);
-    mes->cpu_info.push_back(cpu);
-    mes->gpu_buffer->pushBack(gpu);
+    mes.cpu_info.push_back(cpu);
+    mes.gpu_buffer->pushBack(gpu);
 
-    return {Unlit, shader_section_index, mat_section_index, mesh_section_index, id, this};
+    return {Unlit, this, lid};
+    // return {Unlit, shader_section_index, mat_section_index, mesh_section_index, id, this};
 }
 
 template <typename ROCpu, typename ROGpu>
@@ -686,62 +657,87 @@ void Frender::Renderer::_destroyRenderObject(std::vector<ShaderSection<MatSectio
         return;
     }
 
+    auto loc = render_object_lookup.at(ro.id);
+
     // Work backwards
-    MeshSection<ROCpu, ROGpu>* mes =
-        &scene[*ro.loc.shader_section].mats[*ro.loc.mat_section].meshes[*ro.loc.mesh_section];
+    MeshSection<ROCpu, ROGpu>& mes = scene[loc.shader_section].mats[loc.mat_section].meshes[loc.mesh_section];
 
     // Find our item
     int found_index = -1;
-    for (auto i : mes->cpu_info)
+    for (auto i : mes.cpu_info)
     {
-        if (i.index == ro.loc.index)
+        if (i.index == loc.index)
         {
-            found_index = *i.index;
+            found_index = i.index;
 
             // Delete the item and the index
-            mes->gpu_buffer->pop(*i.index);
-            *i.index = -1;
-            delete i.index;
+            mes.gpu_buffer->pop(i.index);
         }
         else if (found_index != -1)
         {
             // Update the index
-            *i.index = *i.index - 1;
+            i.index = i.index - 1;
+
+            // Update lookup table
+            loc.index = i.index;
+            render_object_lookup.set(ro.id, loc);
+            // TODO: There is space between when the lookup table is changed and when the actual list is changed
         }
     }
 
-    mes->cpu_info.erase(mes->cpu_info.begin() + found_index);
+    mes.cpu_info.erase(mes.cpu_info.begin() + found_index);
 
     // Now we check the Mesh Section...
-    if (mes->cpu_info.size() < 1)
+    if (mes.cpu_info.size() < 1)
     {
         // Delete the mesh section
-        mes->vao->destroy(); // Do I re-use VertexArrays?
-        mes->gpu_buffer->destroy();
+        mes.vao->destroy(); // Do I re-use VertexArrays?
+        mes.gpu_buffer->destroy();
         // TODO: Garbage collection for meshes
 
         // Update the indexes of the rest of them
-        auto mats = &scene[*ro.loc.shader_section].mats[*ro.loc.mat_section];
-        mats->meshes.erase(mats->meshes.begin() + *ro.loc.mesh_section);
+        auto mats = scene[loc.shader_section].mats[loc.mat_section];
+        mats.meshes.erase(mats.meshes.begin() + loc.mesh_section);
 
-        for (int i = *ro.loc.mesh_section; i < mats->meshes.size(); i++)
+        for (int i = loc.mesh_section; i < mats.meshes.size(); i++)
         {
-            *mats->meshes[i].index = *mats->meshes[i].index - 1;
+            mats.meshes[i].index = mats.meshes[i].index - 1;
+
+            // Update lookup table of all subelements
+            // TODO: Maybe make this it's own function?
+            for (auto ro : mats.meshes[i].cpu_info)
+            {
+                Frender::RenderIndex ro_loc = render_object_lookup.at(ro.lookup_index);
+                ro_loc.mesh_section = mats.meshes[i].index;
+                render_object_lookup.set(ro.lookup_index, ro_loc);
+            }
         }
 
         // Now we check the Mat Section...
-        if (mats->meshes.size() < 1)
+        if (mats.meshes.size() < 1)
         {
             // Delete the mat section
             // TODO: Garbage collection for mats
 
             // Update the indexes of the rest of them
-            auto shs = &scene[*ro.loc.shader_section];
-            shs->mats.erase(shs->mats.begin() + *ro.loc.mat_section);
+            auto shs = &scene[loc.shader_section];
+            shs->mats.erase(shs->mats.begin() + loc.mat_section);
 
-            for (int i = *ro.loc.mat_section; i < shs->mats.size(); i++)
+            for (int i = loc.mat_section; i < shs->mats.size(); i++)
             {
-                *shs->mats[i].index = *shs->mats[i].index - 1;
+                shs->mats[i].index = shs->mats[i].index - 1;
+
+                // Update lookup table of all subelements
+                // TODO: Maybe make this it's own function?
+                for (auto& mesh : shs->mats[i].meshes)
+                {
+                    for (auto ro : mesh.cpu_info)
+                    {
+                        Frender::RenderIndex ro_loc = render_object_lookup.at(ro.lookup_index);
+                        ro_loc.mat_section = shs->mats[i].index;
+                        render_object_lookup.set(ro.lookup_index, ro_loc);
+                    }
+                }
             }
 
             // Now we check the Shader Section...
@@ -751,11 +747,24 @@ void Frender::Renderer::_destroyRenderObject(std::vector<ShaderSection<MatSectio
                 // TODO: Garbage collection for shader
 
                 // Update the indexes of the rest of them
-                scene.erase(scene.begin() + *ro.loc.shader_section);
+                scene.erase(scene.begin() + loc.shader_section);
 
-                for (int i = *ro.loc.shader_section; i < scene.size(); i++)
+                for (int i = loc.shader_section; i < scene.size(); i++)
                 {
-                    *scene[i].index = *scene[i].index - 1;
+                    scene[i].index = scene[i].index - 1;
+
+                    for (auto& mats : scene[i].mats)
+                    {
+                        for (auto& mesh : mats.meshes)
+                        {
+                            for (auto ro : mesh.cpu_info)
+                            {
+                                Frender::RenderIndex ro_loc = render_object_lookup.at(ro.lookup_index);
+                                ro_loc.shader_section = scene[i].index;
+                                render_object_lookup.set(ro.lookup_index, ro_loc);
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -764,7 +773,7 @@ void Frender::Renderer::_destroyRenderObject(std::vector<ShaderSection<MatSectio
 
 void Frender::Renderer::destroyRenderObject(RenderObjectRef ro)
 {
-    switch (ro.loc.type)
+    switch (ro.type)
     {
     case (Lit):
         _destroyRenderObject(scene_tree, ro);
@@ -774,10 +783,6 @@ void Frender::Renderer::destroyRenderObject(RenderObjectRef ro)
         _destroyRenderObject(funlit_scene_tree, ro);
         return;
 
-        // case (ForwardLit):
-        // _destroyRenderObject(flit_scene_tree, ro);
-        // return;
-
     default:
         break;
     }
@@ -785,76 +790,56 @@ void Frender::Renderer::destroyRenderObject(RenderObjectRef ro)
 
 Frender::RenderObjectRef Frender::Renderer::duplicateRenderObject(RenderObjectRef ro)
 {
-    if (ro.loc.type == Lit)
+    auto loc = render_object_lookup.at(ro.id);
+    if (ro.type == Lit)
     {
         return createUnlitRenderObject(
-            scene_tree[*ro.loc.shader_section].shader,
-            scene_tree[*ro.loc.shader_section].mats[*ro.loc.mat_section].meshes[*ro.loc.mesh_section].mesh,
-            scene_tree[*ro.loc.shader_section].mats[*ro.loc.mat_section].mat.mat_ref,
-            scene_tree[*ro.loc.shader_section]
-                .mats[*ro.loc.mat_section]
-                .meshes[*ro.loc.mesh_section]
-                .cpu_info[*ro.loc.index]
-                .model);
+            scene_tree[loc.shader_section].shader,
+            scene_tree[loc.shader_section].mats[loc.mat_section].meshes[loc.mesh_section].mesh,
+            scene_tree[loc.shader_section].mats[loc.mat_section].mat.mat_ref,
+            scene_tree[loc.shader_section].mats[loc.mat_section].meshes[loc.mesh_section].cpu_info[loc.index].model);
     }
     else
     {
         return createUnlitRenderObject(
-            funlit_scene_tree[*ro.loc.shader_section].shader,
-            funlit_scene_tree[*ro.loc.shader_section].mats[*ro.loc.mat_section].meshes[*ro.loc.mesh_section].mesh,
-            funlit_scene_tree[*ro.loc.shader_section].mats[*ro.loc.mat_section].mat.mat_ref,
-            funlit_scene_tree[*ro.loc.shader_section]
-                .mats[*ro.loc.mat_section]
-                .meshes[*ro.loc.mesh_section]
-                .cpu_info[*ro.loc.index]
+            funlit_scene_tree[loc.shader_section].shader,
+            funlit_scene_tree[loc.shader_section].mats[loc.mat_section].meshes[loc.mesh_section].mesh,
+            funlit_scene_tree[loc.shader_section].mats[loc.mat_section].mat.mat_ref,
+            funlit_scene_tree[loc.shader_section]
+                .mats[loc.mat_section]
+                .meshes[loc.mesh_section]
+                .cpu_info[loc.index]
                 .model);
     }
 }
 
 Frender::RenderObjectTraits Frender::Renderer::getRenderObjectTraits(RenderObjectRef ro)
 {
-    if (ro.loc.type == Lit)
+    auto loc = render_object_lookup.at(ro.id);
+    if (ro.type == Lit)
     {
-        if (*ro.loc.shader_section >= scene_tree.size() ||
-            *ro.loc.mat_section >= scene_tree[*ro.loc.shader_section].mats.size() ||
-            *ro.loc.mesh_section >= scene_tree[*ro.loc.shader_section]
-                                        .mats[*ro.loc.mat_section]
-                                        .meshes[*ro.loc.mesh_section]
-                                        .cpu_info.size())
+        if (loc.shader_section >= scene_tree.size() || loc.mat_section >= scene_tree[loc.shader_section].mats.size() ||
+            loc.mesh_section >=
+                scene_tree[loc.shader_section].mats[loc.mat_section].meshes[loc.mesh_section].cpu_info.size())
         {
             std::cout << "Very, very bad\n";
         }
 
-        return {ro.loc.type, scene_tree[*ro.loc.shader_section].shader,
-                scene_tree[*ro.loc.shader_section].mats[*ro.loc.mat_section].mat.mat_ref,
-                scene_tree[*ro.loc.shader_section].mats[*ro.loc.mat_section].meshes[*ro.loc.mesh_section].mesh,
-                scene_tree[*ro.loc.shader_section]
-                    .mats[*ro.loc.mat_section]
-                    .meshes[*ro.loc.mesh_section]
-                    .cpu_info[*ro.loc.index]
-                    .model};
+        return {
+            ro.type, scene_tree[loc.shader_section].shader,
+            scene_tree[loc.shader_section].mats[loc.mat_section].mat.mat_ref,
+            scene_tree[loc.shader_section].mats[loc.mat_section].meshes[loc.mesh_section].mesh,
+            scene_tree[loc.shader_section].mats[loc.mat_section].meshes[loc.mesh_section].cpu_info[loc.index].model};
     }
-    // else if (ro.loc.type == ForwardLit)
-    // {
-
-    // return {ro.loc.type, flit_scene_tree[*ro.loc.shader_section].shader,
-    // flit_scene_tree[*ro.loc.shader_section].mats[*ro.loc.mat_section].mat.mat_ref,
-    // flit_scene_tree[*ro.loc.shader_section].mats[*ro.loc.mat_section].meshes[*ro.loc.mesh_section].mesh,
-    // flit_scene_tree[*ro.loc.shader_section]
-    // .mats[*ro.loc.mat_section]
-    // .meshes[*ro.loc.mesh_section]
-    // .cpu_info[*ro.loc.index]
-    // .model};
-    // }
     else
     {
-        return {ro.loc.type, funlit_scene_tree[*ro.loc.shader_section].shader,
-                funlit_scene_tree[*ro.loc.shader_section].mats[*ro.loc.mat_section].mat.mat_ref,
-                funlit_scene_tree[*ro.loc.shader_section].mats[*ro.loc.mat_section].meshes[*ro.loc.mesh_section].mesh,
-                funlit_scene_tree[*ro.loc.shader_section]
-                    .mats[*ro.loc.mat_section]
-                    .meshes[*ro.loc.mesh_section]
-                    .cpu_info[*ro.loc.index]
+        return {ro.type, funlit_scene_tree[loc.shader_section].shader,
+                funlit_scene_tree[loc.shader_section].mats[loc.mat_section].mat.mat_ref,
+                funlit_scene_tree[loc.shader_section].mats[loc.mat_section].meshes[loc.mesh_section].mesh,
+                funlit_scene_tree[loc.shader_section]
+                    .mats[loc.mat_section]
+                    .meshes[loc.mesh_section]
+                    .cpu_info[loc.index]
                     .model};
     }
 }
@@ -864,23 +849,14 @@ Frender::LightRef Frender::Renderer::createPointLight(glm::vec3 position, glm::v
     radius *= 1.5;
     auto m = glm::scale(glm::translate(glm::mat4(), position), glm::vec3(radius));
 
+    // TODO: Remove the ptrs here
     auto light_id = new int32_t(light_index);
-    point_lights.push_back({color, position, radius, m, light_id, nullptr, nullptr});
+    point_lights.push_back({color, position, radius, m, light_id});
 
 #ifndef FLUX_NO_DEFFERED
     // New method: Add to buffer
     point_light_buffer.pushBack({color, position, radius, m});
 #endif
-
-    // Add to Extrema list
-    // point_lights[light_index].minima =
-    // addExtrema({Extrema::Minima, Extrema::Light, position - glm::vec3(radius), light_id, nullptr, {}});
-    // point_lights[light_index].maxima =
-    // addExtrema({Extrema::Maxima, Extrema::Light, position + glm::vec3(radius), light_id, nullptr, {}});
-
-    // // Add to light buffer
-    // light_buffer.setArray("light_pos_dir_rad", light_index, glm::vec4(position.x, position.y, position.z, radius));
-    // light_buffer.setArray("light_color_type", light_index, glm::vec4(color.x, color.y, color.z, 0));
 
     light_index++;
     return Frender::LightRef(this, Point, new int32_t(point_lights.size() - 1));
@@ -905,66 +881,18 @@ Frender::LightRef Frender::Renderer::createDirectionalLight(glm::vec3 color, glm
 
 glm::mat4 Frender::RenderObjectRef::getTransform()
 {
-    return renderer->_getRenderObject(loc)->model;
+    return renderer->_getRenderObject(id, type).model;
 }
 
 void Frender::RenderObjectRef::setTransform(glm::mat4 t)
 {
-    renderer->_getRenderObject(loc)->model = t;
+    renderer->_getRenderObject(id, type).model = t;
 }
 
 Frender::RenderObjectRef Frender::RenderObjectRef::duplicate()
 {
     return renderer->duplicateRenderObject(*this);
 }
-
-// glm::vec3* Frender::Renderer::addExtrema(Extrema e)
-// {
-// glm::vec3 output;
-
-// if (e.index == nullptr)
-// {
-// e.index = new glm::vec3();
-// }
-
-// for (int i = 0; i < 3; i++)
-// {
-// // Add extrema in one axis
-// auto minima_it =
-// std::upper_bound(broad_phase[i].begin(), broad_phase[i].end(), e,
-// [i](const Extrema& value, Extrema& info) { return value.position[i] < info.position[i]; });
-
-// auto mit = broad_phase[i].insert(minima_it, e);
-// output[i] = mit - broad_phase[i].begin();
-// (*e.index)[i] = output[i];
-
-// // Update the rest of the indicies
-// for (int j = output[i] + 1; j < broad_phase[i].size(); j++)
-// {
-// (*broad_phase[i][j].index)[i] = j;
-// }
-// }
-
-// return e.index;
-// }
-
-// void Frender::Renderer::removeExtrema(glm::vec3* ex_index)
-// {
-// // Remove it
-// for (int i = 0; i < 3; i++)
-// {
-// broad_phase[i].erase(broad_phase[i].begin() + (*ex_index)[i]);
-
-// // Update the rest of the indices
-// for (int j = (*ex_index)[i]; j < broad_phase[i].size(); j++)
-// {
-// (*broad_phase[i][j].index)[i] = j;
-// }
-// }
-
-// // Free the memory
-// delete ex_index;
-// }
 
 glm::vec3 Frender::Renderer::getLightPosition(LightRef light)
 {
